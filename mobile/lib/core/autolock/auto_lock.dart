@@ -10,6 +10,12 @@ const autoLockChoices = [1, 5, 15, 30];
 const defaultAutoLockMinutes = 5;
 const backgroundGrace = Duration(seconds: 30);
 
+/// Announces user input that produces no pointer event, such as typing on the soft keyboard.
+/// Forms dispatch it on every change, and the auto lock scope treats it as activity.
+class UserActivity extends Notification {
+  const UserActivity();
+}
+
 final autoLockMinutesProvider = NotifierProvider<AutoLockMinutes, int>(AutoLockMinutes.new);
 
 class AutoLockMinutes extends Notifier<int> {
@@ -77,6 +83,12 @@ class _AutoLockScopeState extends ConsumerState<AutoLockScope> {
   @override
   Widget build(BuildContext context) {
     ref.listen(autoLockMinutesProvider, (_, _) => _restart());
-    return Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => _restart(), child: widget.child);
+    return NotificationListener<UserActivity>(
+      onNotification: (_) {
+        _restart();
+        return true;
+      },
+      child: Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => _restart(), child: widget.child),
+    );
   }
 }

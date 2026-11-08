@@ -127,16 +127,18 @@ pub async fn register(state: &AppState, req: &RegisterRequest, headers: &HeaderM
     Ok(Authenticated { user, token })
 }
 
-/// The single place where a master password proof is checked. Login, unlock and every
-/// sensitive operation go through it so they share one throttle per account.
+/// The single place where a master password proof is checked. Every bucket is claimed
+/// before Argon2 runs, so parallel requests cannot share one throttle window, and a
+/// successful proof clears them all again (SPEC 4.7).
 pub async fn verify_proof(
     state: &AppState,
-    username_norm: &str,
+    buckets: &[throttle::Bucket],
     user: Option<&UserRow>,
     auth_key: &SecretB64,
 ) -> Result<(), AppError> {
-    let key = crypto::throttle_key(state.prelogin_secret(), username_norm);
-    throttle::check(&state.db, &key).await?;
+    for bucket in buckets {
+        throttle::claim(&state.db, bucket).await?;
+    }
 
     // A malformed key still costs one Argon2 run, so input shape does not shorten timing.
     let (decoded, well_formed) = match decode_auth_key(auth_key) {
@@ -147,16 +149,18 @@ pub async fn verify_proof(
     let matched = state.verify_auth_key(decoded, phc).await?;
 
     if matched && well_formed && user.is_some() {
-        throttle::reset(&state.db, &key).await?;
+        for bucket in buckets {
+            throttle::reset(&state.db, bucket).await?;
+        }
         Ok(())
     } else {
-        throttle::record_failure(&state.db, &key).await?;
         Err(AppError::InvalidCredentials)
     }
 }
 
 pub async fn login(
     state: &AppState,
+    ip: std::net::IpAddr,
     raw_username: &str,
     auth_key: &SecretB64,
     headers: &HeaderMap,
@@ -164,7 +168,8 @@ pub async fn login(
     // Invalid names cannot belong to an account, so they get the generic failure too.
     let name = username::normalize(raw_username).map_err(|_| AppError::InvalidCredentials)?;
     let user = users::find_by_username(&state.db, &name).await?;
-    verify_proof(state, &name, user.as_ref(), auth_key).await?;
+    let buckets = throttle::login_buckets(state.prelogin_secret(), &name, ip);
+    verify_proof(state, &buckets, user.as_ref(), auth_key).await?;
     let user = user.ok_or(AppError::InvalidCredentials)?;
 
     if crypto::needs_rehash(&user.auth_hash) {
@@ -185,7 +190,8 @@ pub async fn unlock(
     let user = users::find_by_id(&state.db, session.user_id)
         .await?
         .ok_or(AppError::Unauthenticated)?;
-    verify_proof(state, &user.username, Some(&user), auth_key).await?;
+    let buckets = throttle::session_bucket(state.prelogin_secret(), session.id);
+    verify_proof(state, &buckets, Some(&user), auth_key).await?;
     let token = sessions::service::rotate(state, session, SessionState::Full).await?;
     Ok((user, token))
 }
@@ -199,10 +205,20 @@ pub async fn require_fresh_proof(
     let user = users::find_by_id(&state.db, session.user_id)
         .await?
         .ok_or(AppError::Unauthenticated)?;
-    verify_proof(state, &user.username, Some(&user), auth_key).await?;
+    let buckets = throttle::session_bucket(state.prelogin_secret(), session.id);
+    verify_proof(state, &buckets, Some(&user), auth_key).await?;
     Ok(user)
 }
 
 pub fn token_for_body(client: ClientKind, token: &IssuedToken) -> Option<String> {
     (client == ClientKind::Mobile).then(|| token.token.clone())
+}
+
+/// Ends the session the request carries, if any. Always succeeds, so a client can reset its
+/// local state even when the session already expired.
+pub async fn logout(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
+    if let Ok(session) = sessions::service::validate(state, headers).await {
+        sessions::repository::delete(&state.db, session.id).await?;
+    }
+    Ok(())
 }

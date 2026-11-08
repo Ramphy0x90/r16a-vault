@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/api/api_error.dart';
+import '../../core/autolock/auto_lock.dart';
 import '../../core/totp/totp.dart';
 import '../auth/widgets.dart';
 import '../generator/generator_controller.dart';
@@ -55,7 +56,7 @@ class _AddCredentialScreenState extends ConsumerState<AddCredentialScreen> {
             url: normaliseUrl(_url.text),
             username: _username.text.trim(),
             password: _password.text,
-            mfaSecret: mfa.isEmpty ? null : mfa,
+            mfaSecret: mfa.isEmpty ? null : canonicalTotpSecret(mfa),
           );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${_name.text.trim()} was saved.')));
@@ -86,6 +87,7 @@ class _AddCredentialScreenState extends ConsumerState<AddCredentialScreen> {
       body: SafeArea(
         child: Form(
           key: _form,
+          onChanged: () => const UserActivity().dispatch(context),
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [

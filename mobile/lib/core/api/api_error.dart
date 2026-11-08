@@ -28,6 +28,7 @@ class ApiError implements Exception {
 }
 
 String messageFor(Object e) {
+  if (e is FormatException) return 'The server sent an unexpected response.';
   if (e is CryptoError) {
     return switch (e.code) {
       CryptoErrorCode.kdfRejected => 'The server sent unsafe security settings, so sign in was stopped.',

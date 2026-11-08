@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/api/api_client.dart';
+import 'core/clipboard/clipboard_service.dart';
 import 'core/router.dart';
 import 'core/session/session_service.dart';
 import 'core/theme/theme.dart';
@@ -17,6 +18,7 @@ class _R16aVaultAppState extends ConsumerState<R16aVaultApp> {
   @override
   void initState() {
     super.initState();
+    ref.read(clipboardServiceProvider);
     ref.read(sessionServiceProvider).bootstrap();
   }
 

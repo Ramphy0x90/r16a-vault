@@ -18,7 +18,7 @@ import {
 } from '@angular/forms';
 
 import { messageFor } from '../core/api/api-error';
-import { groupCode, parseTotp, totpCode } from '../core/totp/totp';
+import { canonicalTotpSecret, groupCode, parseTotp, totpCode } from '../core/totp/totp';
 import { ToastService } from '../core/ui/toast.service';
 import { GeneratorPanel } from '../generator/generator-panel';
 import { GeneratorStore } from '../generator/generator.store';
@@ -290,9 +290,11 @@ export class AddCredentialDialog {
     mfaSecret: ['', [validTotp, Validators.maxLength(1024)]],
   });
   private readonly mfa = toSignal(this.form.controls.mfaSecret.valueChanges, { initialValue: '' });
+  /** Ticks while the dialog is open, so the preview code rolls over like the real one. */
+  private readonly now = signal(Date.now());
   protected readonly preview = computed(() => {
     const cfg = parseTotp(this.mfa());
-    return cfg ? groupCode(totpCode(cfg, Date.now())) : '';
+    return cfg ? groupCode(totpCode(cfg, this.now())) : '';
   });
   protected readonly showPw = signal(false);
   protected readonly generating = signal(false);
@@ -304,6 +306,11 @@ export class AddCredentialDialog {
     effect(() => {
       const pw = this.initialPassword();
       if (this.open() && pw) this.form.controls.password.setValue(pw);
+    });
+    effect((onCleanup) => {
+      if (!this.open()) return;
+      const ticker = setInterval(() => this.now.set(Date.now()), 1000);
+      onCleanup(() => clearInterval(ticker));
     });
   }
 
@@ -334,7 +341,7 @@ export class AddCredentialDialog {
         url: normaliseUrl(v.url) ?? null,
         username: v.username.trim(),
         password: v.password,
-        mfaSecret: v.mfaSecret.trim() || null,
+        mfaSecret: v.mfaSecret.trim() ? canonicalTotpSecret(v.mfaSecret) : null,
       });
       this.toast.show(`${v.name.trim()} was saved.`, 'success');
       this.close();

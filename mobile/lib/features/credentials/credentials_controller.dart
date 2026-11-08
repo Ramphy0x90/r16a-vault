@@ -21,24 +21,26 @@ final credentialsProvider = AsyncNotifierProvider<CredentialsController, List<Cr
   CredentialsController.new,
 );
 
-/// Decrypted credential list. Only meta blobs are opened here. The list rebuilds from
-/// scratch after every lock, because watching the lock epoch disposes the old state.
+/// Decrypted credential list. Only meta blobs are opened here. The list is dropped on every
+/// lock and loaded again on unlock.
 class CredentialsController extends AsyncNotifier<List<CredentialEntry>> {
   static const _uuid = Uuid();
 
   @override
   Future<List<CredentialEntry>> build() async {
-    ref.watch(vaultProvider.select((s) => s.lockEpoch));
-    if (ref.read(vaultProvider).status != VaultStatus.unlocked) return const [];
+    // Both matter. The epoch drops state on every lock, the status reloads on unlock, which
+    // leaves the epoch unchanged.
+    final unlocked = ref.watch(vaultProvider.select((s) => (s.lockEpoch, s.status == VaultStatus.unlocked))).$2;
+    if (!unlocked) return const [];
     final crypto = await ref.read(vaultCryptoProvider.future);
     final rows = await ref.read(apiClientProvider).listCredentials();
     final vault = ref.read(vaultProvider.notifier);
     return [
       for (final r in rows)
         CredentialEntry(
-          id: r['id'] as String,
-          secretBlob: r['secret'] as String,
-          meta: _tryOpen(() => vault.withKey((k) => crypto.openMeta(k, r['id'] as String, r['meta'] as String))),
+          id: r.id,
+          secretBlob: r.secret,
+          meta: _tryOpen(() => vault.withKey((k) => crypto.openMeta(k, r.id, r.meta))),
         ),
     ];
   }
@@ -67,7 +69,7 @@ class CredentialsController extends AsyncNotifier<List<CredentialEntry>> {
         .withKey((k) => crypto.sealCredential(k, id, meta, CredentialSecret(password: password, mfaSecret: mfaSecret)));
     final row = await ref.read(apiClientProvider).createCredential(id, sealed.meta, sealed.secret);
     final current = state.value ?? const [];
-    state = AsyncData([...current, CredentialEntry(id: id, meta: meta, secretBlob: row['secret'] as String)]);
+    state = AsyncData([...current, CredentialEntry(id: id, meta: meta, secretBlob: row.secret)]);
   }
 
   Future<void> remove(String id) async {
@@ -81,3 +83,30 @@ class CredentialsController extends AsyncNotifier<List<CredentialEntry>> {
     return ref.read(vaultProvider.notifier).withKey((k) => crypto.openSecret(k, id, entry.secretBlob));
   }
 }
+
+/// The search text of the vault list. Reset with every lock, like the list itself.
+final credentialQueryProvider = NotifierProvider<CredentialQuery, String>(CredentialQuery.new);
+
+class CredentialQuery extends Notifier<String> {
+  @override
+  String build() {
+    ref.watch(vaultProvider.select((s) => s.lockEpoch));
+    return '';
+  }
+
+  void set(String value) => state = value;
+}
+
+/// The list as shown, sorted by name and filtered by the search text.
+final visibleCredentialsProvider = Provider<AsyncValue<List<CredentialEntry>>>((ref) {
+  final query = ref.watch(credentialQueryProvider).trim().toLowerCase();
+  return ref.watch(credentialsProvider).whenData((list) {
+    final sorted = [...list]
+      ..sort((a, b) => (a.meta?.name ?? '').toLowerCase().compareTo((b.meta?.name ?? '').toLowerCase()));
+    if (query.isEmpty) return sorted;
+    return sorted.where((e) {
+      final m = e.meta;
+      return m != null && [m.name, m.username, m.url ?? ''].any((f) => f.toLowerCase().contains(query));
+    }).toList();
+  });
+});

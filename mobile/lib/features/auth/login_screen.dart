@@ -38,9 +38,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(prefsProvider).setString(PrefKeys.serverUrl, normaliseServerUrl(_server.text)!);
-      ref.invalidate(apiClientProvider);
-      await ref.read(sessionServiceProvider).login(_username.text.trim(), _password.text);
+      final session = ref.read(sessionServiceProvider);
+      await session.useServer(_server.text);
+      await session.login(_username.text.trim(), _password.text);
       _password.clear();
     } catch (e) {
       _password.clear();
@@ -61,14 +61,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(prefsProvider).setString(PrefKeys.serverUrl, server);
-      ref.invalidate(apiClientProvider);
-      final config = await ref.read(apiClientProvider).authConfig();
-      if (config['oidcEnabled'] != true) {
+      final session = ref.read(sessionServiceProvider);
+      await session.useServer(server);
+      if (!await session.oidcEnabled()) {
         setState(() => _error = 'Single sign on is not enabled on this server.');
         return;
       }
-      final mustRegister = await ref.read(sessionServiceProvider).signInWithOidc();
+      final mustRegister = await session.signInWithOidc();
       if (mustRegister && mounted) context.go('/register');
     } catch (e) {
       if (mounted) setState(() => _error = e is StateError ? 'Single sign on could not be completed.' : messageFor(e));

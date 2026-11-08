@@ -117,6 +117,7 @@ async fn serve(config: Config) -> Result<(), String> {
     let bind = config.bind;
     let state = AppState::new(pool, config).map_err(|e| format!("state init failed {e}"))?;
     sessions::cleanup::spawn(state.clone());
+    prefetch_oidc(&state);
 
     let listener = tokio::net::TcpListener::bind(bind)
         .await
@@ -148,4 +149,28 @@ async fn shutdown_signal() {
         () = term => {},
     }
     tracing::info!("shutting down");
+}
+
+/// Fetches the OIDC discovery document at startup, so a misconfigured issuer shows up in the
+/// logs right away instead of at the first sign in. Retries with backoff and never blocks
+/// serving, because local accounts work without the provider.
+fn prefetch_oidc(state: &AppState) {
+    let Some(provider) = state.oidc.clone() else {
+        return;
+    };
+    tokio::spawn(async move {
+        let mut delay = Duration::from_secs(2);
+        for attempt in 1..=6 {
+            match provider.client(true).await {
+                Ok(_) => {
+                    tracing::info!("oidc provider discovered");
+                    return;
+                }
+                Err(e) => tracing::warn!(attempt, error = %e, "oidc discovery failed, retrying"),
+            }
+            tokio::time::sleep(delay).await;
+            delay = (delay * 2).min(Duration::from_secs(60));
+        }
+        tracing::error!("oidc discovery keeps failing, single sign on will retry on first use");
+    });
 }

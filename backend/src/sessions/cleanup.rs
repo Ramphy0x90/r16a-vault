@@ -20,21 +20,26 @@ pub fn spawn(state: AppState) {
 
 pub async fn run_once(state: &AppState) {
     let idle = state.config.session_idle.as_secs_f64();
-    match super::repository::delete_expired(&state.db, idle).await {
-        Ok(n) if n > 0 => tracing::info!(removed = n, "expired sessions removed"),
-        Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "session cleanup failed"),
-    }
-    match crate::auth::throttle::delete_stale(&state.db, state.config.throttle_ttl).await {
-        Ok(n) if n > 0 => tracing::info!(removed = n, "stale throttle rows removed"),
-        Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "throttle cleanup failed"),
-    }
-    match crate::oidc::repository::delete_expired(&state.db).await {
-        Ok(n) if n > 0 => tracing::info!(removed = n, "expired oidc rows removed"),
-        Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "oidc cleanup failed"),
-    }
+    report(
+        "expired sessions",
+        super::repository::delete_expired(&state.db, idle).await,
+    );
+    report(
+        "stale throttle rows",
+        crate::auth::throttle::delete_stale(&state.db, state.config.throttle_ttl).await,
+    );
+    report(
+        "expired oidc rows",
+        crate::oidc::repository::delete_expired(&state.db).await,
+    );
     state.ip_limiter.prune();
     state.prelogin_limiter.prune();
+}
+
+fn report(what: &str, result: sqlx::Result<u64>) {
+    match result {
+        Ok(0) => {}
+        Ok(n) => tracing::info!(removed = n, "{what} removed"),
+        Err(e) => tracing::warn!(error = %e, "{what} cleanup failed"),
+    }
 }

@@ -2,7 +2,7 @@ import { Injectable, effect, inject, untracked } from '@angular/core';
 import { Router } from '@angular/router';
 
 import { ApiService } from '../api/api.service';
-import type { MeResponse } from '../api/api.types';
+import type { LoginResponse, MeResponse } from '../api/api.types';
 import { VaultCryptoService } from '../crypto/vault-crypto.service';
 import { VaultSessionStore } from '../vault/vault-session.store';
 import { SessionEvents } from './session-events';
@@ -11,6 +11,18 @@ import { SessionEvents } from './session-events';
  * Orchestrates every flow that involves the master password. Each flow derives keys,
  * talks to the API and wipes intermediate keys before returning, whatever the outcome.
  */
+/** Profile as known right after a full sign in. The creation date is not part of that response. */
+function meFrom(res: LoginResponse): MeResponse {
+  return {
+    id: res.user.id,
+    username: res.user.username,
+    kdf: res.kdf,
+    salt: res.salt,
+    sessionState: 'full',
+    createdAt: '',
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class SessionService {
   private readonly api = inject(ApiService);
@@ -44,14 +56,7 @@ export class SessionService {
     try {
       const material = await this.crypto.createKeyMaterial(password, vaultKey);
       const res = await this.api.register({ username, ...material });
-      this.me = {
-        id: res.user.id,
-        username: res.user.username,
-        kdf: res.kdf,
-        salt: res.salt,
-        sessionState: 'full',
-        createdAt: '',
-      };
+      this.me = meFrom(res);
       this.store.setUnlocked(res.user.username, vaultKey);
     } catch (e) {
       await this.crypto.wipeKey(vaultKey);
@@ -65,14 +70,7 @@ export class SessionService {
     try {
       const res = await this.api.login(username, await this.crypto.authKeyB64(keys));
       const vaultKey = await this.crypto.unwrap(keys, res.wrappedVaultKey);
-      this.me = {
-        id: res.user.id,
-        username: res.user.username,
-        kdf: res.kdf,
-        salt: res.salt,
-        sessionState: 'full',
-        createdAt: '',
-      };
+      this.me = meFrom(res);
       this.store.setUnlocked(res.user.username, vaultKey);
     } finally {
       await this.crypto.wipeSubkeys(keys);

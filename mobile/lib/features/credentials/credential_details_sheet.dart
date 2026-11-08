@@ -59,7 +59,7 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
     try {
       return await ref.read(credentialsProvider.notifier).openSecret(widget.id);
     } catch (_) {
-      setState(() => _error = 'This secret could not be decrypted.');
+      if (mounted) setState(() => _error = 'This secret could not be decrypted.');
       return null;
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -111,7 +111,10 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
     if (mounted) setState(() => _totp = null);
   }
 
-  void _toast(String message) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
 
   Future<void> _delete() async {
     final confirmed = await showDialog<bool>(

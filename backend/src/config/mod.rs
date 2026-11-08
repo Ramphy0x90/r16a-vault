@@ -69,6 +69,8 @@ pub struct Config {
     pub dev_insecure_cookie: bool,
     pub trusted_proxies: Vec<IpNet>,
     pub registration_enabled: bool,
+    /// Operator's privacy notice, linked from the sign in pages of both apps when set.
+    pub privacy_url: Option<String>,
     pub migrate_on_start: bool,
     pub throttle_ttl: Duration,
     pub rate_limit_burst: u32,
@@ -101,9 +103,10 @@ impl Config {
             reason: "expected an absolute http or https URL such as https://vault.example.com".into(),
         })?;
 
-        let prelogin_secret =
-            secret_bytes(&get, "R16A_PRELOGIN_SECRET")?.ok_or(ConfigError::Missing("R16A_PRELOGIN_SECRET"))?;
-        let auth_pepper = secret_bytes(&get, "R16A_AUTH_PEPPER")?;
+        let dev_insecure_cookie = parse_or(&get, "R16A_DEV_INSECURE_COOKIE", false)?;
+        let prelogin_secret = secret_bytes(&get, "R16A_PRELOGIN_SECRET", dev_insecure_cookie)?
+            .ok_or(ConfigError::Missing("R16A_PRELOGIN_SECRET"))?;
+        let auth_pepper = secret_bytes(&get, "R16A_AUTH_PEPPER", dev_insecure_cookie)?;
 
         let session_idle = Duration::from_secs(parse_or(&get, "R16A_SESSION_IDLE_SECS", 1800u64)?);
         let session_absolute = Duration::from_secs(parse_or(&get, "R16A_SESSION_ABSOLUTE_SECS", 43_200u64)?);
@@ -114,7 +117,6 @@ impl Config {
             });
         }
 
-        let dev_insecure_cookie = parse_or(&get, "R16A_DEV_INSECURE_COOKIE", false)?;
         if dev_insecure_cookie && public_origin.starts_with("https://") {
             return Err(ConfigError::Invalid {
                 name: "R16A_DEV_INSECURE_COOKIE",
@@ -216,6 +218,16 @@ impl Config {
             dev_insecure_cookie,
             trusted_proxies,
             registration_enabled: parse_or(&get, "R16A_REGISTRATION_ENABLED", true)?,
+            privacy_url: match get("R16A_PRIVACY_URL") {
+                None => None,
+                Some(u) if u.starts_with("https://") || u.starts_with("http://") => Some(u),
+                Some(_) => {
+                    return Err(ConfigError::Invalid {
+                        name: "R16A_PRIVACY_URL",
+                        reason: "must be an absolute http or https URL".into(),
+                    });
+                }
+            },
             migrate_on_start: parse_or(&get, "R16A_MIGRATE_ON_START", false)?,
             throttle_ttl: Duration::from_secs(parse_or(&get, "R16A_THROTTLE_TTL_SECS", 86_400u64)?),
             rate_limit_burst,
@@ -253,19 +265,40 @@ fn parse_or<T: std::str::FromStr>(
     }
 }
 
-/// Secrets must carry at least 256 bits so a short placeholder cannot slip into production.
+/// Words that only appear in shipped templates and examples. A secret containing one was
+/// never replaced, and its value is public.
+const PLACEHOLDER_MARKERS: [&str; 5] = ["replace", "change-me", "changeme", "placeholder", "example"];
+
+/// Secrets must look generated. Length alone is not enough, because the shipped placeholders
+/// are long. Values from the repository templates are refused, the published development
+/// values are refused outside development mode, and very repetitive values are refused.
 fn secret_bytes(
     get: &impl Fn(&str) -> Option<String>,
     name: &'static str,
+    dev_mode: bool,
 ) -> Result<Option<SecretBox<Vec<u8>>>, ConfigError> {
-    match get(name) {
-        None => Ok(None),
-        Some(v) if v.len() >= 32 => Ok(Some(SecretBox::new(Box::new(v.into_bytes())))),
-        Some(_) => Err(ConfigError::Invalid {
-            name,
-            reason: "must be at least 32 characters, generate one with `openssl rand -base64 48`".into(),
-        }),
+    let Some(v) = get(name) else {
+        return Ok(None);
+    };
+    let lower = v.to_ascii_lowercase();
+    let invalid = |reason: &str| ConfigError::Invalid {
+        name,
+        reason: format!("{reason}, generate one with `openssl rand -base64 48`"),
+    };
+    if v.len() < 32 {
+        return Err(invalid("must be at least 32 characters"));
     }
+    if PLACEHOLDER_MARKERS.iter().any(|m| lower.contains(m)) {
+        return Err(invalid("still holds a template placeholder"));
+    }
+    if lower.contains("dev-only") && !dev_mode {
+        return Err(invalid("holds the public development value outside development mode"));
+    }
+    let distinct = v.chars().collect::<std::collections::HashSet<_>>().len();
+    if distinct < 12 {
+        return Err(invalid("is too repetitive to be random"));
+    }
+    Ok(Some(SecretBox::new(Box::new(v.into_bytes()))))
 }
 
 /// Reduces a URL to scheme, host and port, which is what browsers put in the Origin header.
@@ -296,7 +329,7 @@ mod tests {
         HashMap::from([
             ("R16A_DATABASE_URL", "postgres://x".to_string()),
             ("R16A_PUBLIC_URL", "https://vault.example.com/".to_string()),
-            ("R16A_PRELOGIN_SECRET", "a".repeat(40)),
+            ("R16A_PRELOGIN_SECRET", "k9Q2vX7mLp4Rt8Wz1Yb6Nc3Hd5Fg0JsAe".to_string()),
         ])
     }
 
@@ -322,6 +355,27 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn rejects_placeholder_dev_and_repetitive_secrets() {
+        for bad in [
+            "REPLACE_WITH_AT_LEAST_32_RANDOM_CHARACTERS",
+            "dev-only-prelogin-secret-0123456789abcdef",
+            &"ab".repeat(20),
+        ] {
+            let mut env = base();
+            env.insert("R16A_PRELOGIN_SECRET", bad.into());
+            assert!(load(&env).is_err(), "{bad}");
+        }
+        let mut dev = base();
+        dev.insert("R16A_PUBLIC_URL", "http://localhost:4200".into());
+        dev.insert("R16A_DEV_INSECURE_COOKIE", "true".into());
+        dev.insert(
+            "R16A_PRELOGIN_SECRET",
+            "dev-only-prelogin-secret-0123456789abcdef".into(),
+        );
+        assert!(load(&dev).is_ok(), "development values are fine in development mode");
     }
 
     #[test]

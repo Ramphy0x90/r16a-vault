@@ -1,6 +1,7 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 
+import { ApiService } from '../core/api/api.service';
 import { SessionService } from '../core/session/session.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
 import { SettingsPage } from './settings.page';
@@ -29,6 +30,13 @@ describe('SettingsPage delete account', () => {
       providers: [
         provideZonelessChangeDetection(),
         { provide: SessionService, useValue: { deleteAccount } },
+        {
+          provide: ApiService,
+          useValue: {
+            authConfig: () => Promise.resolve({ registrationEnabled: true, oidcEnabled: false }),
+            listSessions: () => Promise.resolve([]),
+          },
+        },
       ],
     }).compileComponents();
     TestBed.inject(VaultSessionStore).setUnlocked('alice', new Uint8Array(32));

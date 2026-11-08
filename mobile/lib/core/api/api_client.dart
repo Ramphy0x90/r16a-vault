@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import '../crypto/protocol.dart';
 import '../prefs/prefs.dart';
 import '../session/token_store.dart';
 import 'api_error.dart';
+import 'dto.dart';
 
 /// Fires when the server reports the session as gone, so the app can reset to sign in.
 final sessionExpiredProvider = NotifierProvider<SessionExpired, int>(SessionExpired.new);
@@ -37,6 +40,11 @@ String? normaliseServerUrl(String input) {
   return allowed ? uri.toString() : null;
 }
 
+String get _userAgent {
+  final os = Platform.operatingSystem;
+  return 'r16a vault mobile (${os.isEmpty ? 'unknown' : '${os[0].toUpperCase()}${os.substring(1)}'})';
+}
+
 class ApiClient {
   ApiClient({required String baseUrl, required this.tokens, required void Function() onExpired})
     : dio = Dio(
@@ -44,7 +52,8 @@ class ApiClient {
           baseUrl: '$baseUrl/api/v1',
           connectTimeout: const Duration(seconds: 10),
           receiveTimeout: const Duration(seconds: 30),
-          headers: {'X-R16a-Request': '1'},
+          // A readable name for the account's session list. Dart's default reveals nothing useful.
+          headers: {'X-R16a-Request': '1', 'User-Agent': _userAgent},
           // Redirects could carry the bearer token to another host.
           followRedirects: false,
         ),
@@ -82,10 +91,10 @@ class ApiClient {
 
   Future<Map<String, dynamic>> authConfig() => _json(dio.get('/auth/config'));
 
-  Future<Map<String, dynamic>> prelogin(String username) =>
-      _json(dio.post('/auth/prelogin', data: {'username': username}));
+  Future<Prelogin> prelogin(String username) =>
+      _json(dio.post('/auth/prelogin', data: {'username': username})).then(Prelogin.fromJson);
 
-  Future<Map<String, dynamic>> register({
+  Future<SignedIn> register({
     required String username,
     required String authKey,
     required KdfParams kdf,
@@ -105,37 +114,50 @@ class ApiClient {
         'client': 'mobile',
       },
     ),
-  );
+  ).then(SignedIn.fromJson);
 
-  Future<Map<String, dynamic>> oidcExchange(String code, String verifier) =>
-      _json(dio.post('/auth/oidc/exchange', data: {'code': code, 'verifier': verifier}));
+  Future<OidcExchange> oidcExchange(String code, String verifier) =>
+      _json(dio.post('/auth/oidc/exchange', data: {'code': code, 'verifier': verifier})).then(OidcExchange.fromJson);
 
-  Future<Map<String, dynamic>> login(String username, String authKey) =>
-      _json(dio.post('/auth/login', data: {'username': username, 'authKey': authKey, 'client': 'mobile'}));
+  Future<SignedIn> login(String username, String authKey) => _json(
+    dio.post('/auth/login', data: {'username': username, 'authKey': authKey, 'client': 'mobile'}),
+  ).then(SignedIn.fromJson);
 
-  Future<Map<String, dynamic>> unlock(String authKey) => _json(dio.post('/auth/unlock', data: {'authKey': authKey}));
+  Future<Unlocked> unlock(String authKey) =>
+      _json(dio.post('/auth/unlock', data: {'authKey': authKey})).then(Unlocked.fromJson);
 
   Future<void> logout() => _json(dio.post('/auth/logout'));
 
   Future<void> logoutAll(String authKey) => _json(dio.post('/auth/logout-all', data: {'authKey': authKey}));
 
-  Future<Map<String, dynamic>> me() => _json(dio.get('/me'));
+  Future<Me> me() => _json(dio.get('/me')).then(Me.fromJson);
 
   Future<void> changeMasterPassword(Map<String, dynamic> body) => _json(dio.put('/me/master-password', data: body));
 
-  Future<void> deleteAccount(String authKey) => _json(dio.delete('/me', data: {'authKey': authKey}));
-
-  Future<List<Map<String, dynamic>>> listCredentials() async {
+  Future<List<SessionInfo>> listSessions() async {
     try {
-      final res = await dio.get<List<dynamic>>('/credentials');
-      return (res.data ?? const []).cast<Map<String, dynamic>>();
+      final res = await dio.get<List<dynamic>>('/me/sessions');
+      return [for (final row in res.data ?? const []) SessionInfo.fromJson(row as Map<String, dynamic>)];
     } catch (e) {
       throw ApiError.from(e);
     }
   }
 
-  Future<Map<String, dynamic>> createCredential(String id, String meta, String secret) =>
-      _json(dio.post('/credentials', data: {'id': id, 'meta': meta, 'secret': secret}));
+  Future<void> revokeSession(String id) => _json(dio.delete('/me/sessions/${Uri.encodeComponent(id)}'));
+
+  Future<void> deleteAccount(String authKey) => _json(dio.delete('/me', data: {'authKey': authKey}));
+
+  Future<List<CredentialRow>> listCredentials() async {
+    try {
+      final res = await dio.get<List<dynamic>>('/credentials');
+      return [for (final row in res.data ?? const []) CredentialRow.fromJson(row as Map<String, dynamic>)];
+    } catch (e) {
+      throw ApiError.from(e);
+    }
+  }
+
+  Future<CredentialRow> createCredential(String id, String meta, String secret) =>
+      _json(dio.post('/credentials', data: {'id': id, 'meta': meta, 'secret': secret})).then(CredentialRow.fromJson);
 
   Future<void> deleteCredential(String id) => _json(dio.delete('/credentials/${Uri.encodeComponent(id)}'));
 }

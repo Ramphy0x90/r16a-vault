@@ -44,6 +44,12 @@ import { GeneratorStore } from './generator.store';
           />
         </app-generator-panel>
       </section>
+      <p class="credit">
+        Passphrases use the
+        <a href="/licenses/eff-wordlist-CC-BY-3.0.txt" target="_blank" rel="noopener"
+          >EFF large wordlist</a
+        >, licensed CC BY 3.0 US.
+      </p>
       <div class="actions">
         <button
           type="button"
@@ -68,6 +74,10 @@ import { GeneratorStore } from './generator.store';
       display: flex;
       flex-direction: column;
       gap: 6px;
+    }
+    .credit {
+      font-size: 12px;
+      color: var(--color-text-muted);
     }
     .actions {
       display: flex;

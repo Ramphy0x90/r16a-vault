@@ -4,13 +4,24 @@
 # development cookie. The backend refuses that flag whenever R16A_PUBLIC_URL is https.
 name: r16a-vault
 
+# Logs hold client networks and request lines. Rotation caps how much history is kept, about
+# 30 MB per container, see docs/OPERATING.md for the retention statement this supports.
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
 x-hardening: &hardening
+  <<: *logging
   read_only: true
   cap_drop: [ALL]
   security_opt: [no-new-privileges:true]
 
 services:
   db:
+    <<: *logging
     image: postgres:18
     environment:
       POSTGRES_USER: postgres
@@ -52,7 +63,9 @@ services:
       R16A_AUTH_PEPPER: ${R16A_AUTH_PEPPER:-}
       R16A_DEV_INSECURE_COOKIE: ${R16A_DEV_INSECURE_COOKIE:-true}
       R16A_REGISTRATION_ENABLED: ${R16A_REGISTRATION_ENABLED:-true}
-      R16A_TRUSTED_PROXY_CIDRS: ${R16A_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
+      # Only the web container may set X-Forwarded-For. Its address is pinned below. The
+      # network gateway, which carries traffic from published ports, is deliberately not trusted.
+      R16A_TRUSTED_PROXY_CIDRS: 10.89.0.10/32
       RUST_LOG: ${RUST_LOG:-info,sqlx=warn}
     depends_on:
       migrate:
@@ -86,13 +99,18 @@ services:
       interval: 10s
       timeout: 3s
       retries: 10
-    networks: [app]
+    networks:
+      app:
+        ipv4_address: 10.89.0.10
     restart: unless-stopped
 
 networks:
   db:
     internal: true
-  app: {}
+  app:
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24
 
 volumes:
   pgdata: {}

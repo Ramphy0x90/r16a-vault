@@ -463,6 +463,54 @@
           "429": {}
         }
       }
+    },
+    "/api/v1/me/sessions": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "operationId": "sessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SessionDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {}
+        }
+      }
+    },
+    "/api/v1/me/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "account"
+        ],
+        "operationId": "revoke_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "400": {},
+          "404": {}
+        }
+      }
     }
   },
   "components": {
@@ -482,6 +530,12 @@
           },
           "oidcEnabled": {
             "type": "boolean"
+          },
+          "privacyUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "registrationEnabled": {
             "type": "boolean"
@@ -819,6 +873,45 @@
         "type": "string",
         "format": "byte",
         "description": "A base64 key proof. Debug output is redacted and the buffer is wiped on drop,\nso the value cannot end up in logs or linger in freed memory."
+      },
+      "SessionDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "current",
+          "state",
+          "createdAt",
+          "lastSeenAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "True for the session making this request."
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "state": {
+            "type": "string",
+            "description": "`pre_auth` or `full`."
+          },
+          "userAgent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "As sent by the device, at most 256 characters. Clients turn it into a readable name."
+          }
+        }
       },
       "UnlockResponse": {
         "type": "object",

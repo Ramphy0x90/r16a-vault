@@ -120,6 +120,13 @@ function matchPasswords(group: AbstractControl): ValidationErrors | null {
         </button>
       </form>
       <p footer>Already have an account? <a routerLink="/login">Sign in</a></p>
+      @if (privacyUrl()) {
+        <p footer>
+          Your username, sign in times and device details are processed by the operator of this
+          server, see the
+          <a [href]="privacyUrl()" target="_blank" rel="noopener">privacy notice</a>.
+        </p>
+      }
     </app-auth-layout>
   `,
 })
@@ -140,6 +147,7 @@ export class RegisterPage {
   private readonly value = toSignal(this.form.valueChanges);
   protected readonly busy = signal(false);
   protected readonly oidc = signal(false);
+  protected readonly privacyUrl = signal('');
   protected readonly error = signal('');
   protected readonly showErrors = signal(false);
   protected readonly mismatch = computed(() => {
@@ -148,8 +156,13 @@ export class RegisterPage {
   });
 
   constructor() {
+    const api = inject(ApiService);
+    api
+      .authConfig()
+      .then((c) => this.privacyUrl.set(c.privacyUrl ?? ''))
+      .catch(() => undefined);
     if (inject(ActivatedRoute).snapshot.queryParamMap.has('oidc')) {
-      inject(ApiService)
+      api
         .oidcPending()
         .then((p) => {
           this.oidc.set(true);

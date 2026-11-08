@@ -24,6 +24,8 @@ use utoipa::OpenApi;
         crate::account::handlers::me,
         crate::account::handlers::change_master_password,
         crate::account::handlers::delete_me,
+        crate::account::handlers::sessions,
+        crate::account::handlers::revoke_session,
         crate::credentials::handlers::list,
         crate::credentials::handlers::create,
         crate::credentials::handlers::delete,

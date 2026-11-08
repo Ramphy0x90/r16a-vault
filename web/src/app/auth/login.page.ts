@@ -82,6 +82,9 @@ const OIDC_ERRORS: Record<string, string> = {
       @if (registrationEnabled()) {
         <p footer>New here? <a routerLink="/register">Create an account</a></p>
       }
+      @if (privacyUrl()) {
+        <p footer><a [href]="privacyUrl()" target="_blank" rel="noopener">Privacy notice</a></p>
+      }
     </app-auth-layout>
   `,
 })
@@ -99,6 +102,7 @@ export class LoginPage {
   protected readonly showErrors = signal(false);
   protected readonly registrationEnabled = signal(true);
   protected readonly oidcName = signal('');
+  protected readonly privacyUrl = signal('');
   protected readonly notice = signal('');
 
   constructor() {
@@ -112,6 +116,7 @@ export class LoginPage {
       .then((c) => {
         this.registrationEnabled.set(c.registrationEnabled);
         this.oidcName.set(c.oidcEnabled ? (c.oidcDisplayName ?? 'single sign on') : '');
+        this.privacyUrl.set(c.privacyUrl ?? '');
       })
       .catch(() => undefined);
   }

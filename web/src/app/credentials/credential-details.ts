@@ -272,8 +272,10 @@ export class CredentialDetails {
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
 
+  private readonly vault = inject(VaultSessionStore);
+
   constructor() {
-    const vault = inject(VaultSessionStore);
+    const vault = this.vault;
     let first = true;
     effect(() => {
       vault.lockEpoch();
@@ -306,6 +308,7 @@ export class CredentialDetails {
     }
     const secret = await this.withSecret();
     if (!secret) return;
+    this.hidePassword();
     this.password.set(secret.password);
     this.revealTimer = setTimeout(() => this.hidePassword(), REVEAL_MS);
   }
@@ -323,6 +326,7 @@ export class CredentialDetails {
       if (secret) this.error.set('The stored one time code secret is not valid.');
       return;
     }
+    this.hideTotp();
     this.totp.set(config);
     this.now.set(Date.now());
     this.ticker = setInterval(() => this.now.set(Date.now()), 1000);
@@ -363,13 +367,21 @@ export class CredentialDetails {
     this.copiedTimer = setTimeout(() => this.copied.set(null), COPIED_MS);
   }
 
+  /**
+   * Decrypts the secret blob for the current item. Returns null when decryption fails or when
+   * the selection or lock state changed while it ran, so a result never lands on the wrong
+   * item or after a lock.
+   */
   private async withSecret(): Promise<{ password: string; mfaSecret: string | null } | null> {
+    const id = this.credentialId();
+    const epoch = this.vault.lockEpoch();
     this.busy.set(true);
     this.error.set('');
     try {
-      return await this.store.openSecret(this.credentialId());
+      const secret = await this.store.openSecret(id);
+      return id === this.credentialId() && epoch === this.vault.lockEpoch() ? secret : null;
     } catch {
-      this.error.set('This secret could not be decrypted.');
+      if (id === this.credentialId()) this.error.set('This secret could not be decrypted.');
       return null;
     } finally {
       this.busy.set(false);
@@ -386,6 +398,8 @@ export class CredentialDetails {
     this.hidePassword();
     this.hideTotp();
     this.confirming.set(false);
+    if (this.copiedTimer) clearTimeout(this.copiedTimer);
+    this.copiedTimer = null;
     this.copied.set(null);
   }
 }

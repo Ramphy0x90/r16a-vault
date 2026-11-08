@@ -5,17 +5,19 @@ import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angula
 import { MIN_MASTER_PASSWORD } from '../auth/register.page';
 import { PasswordInput } from '../auth/password-input';
 import { messageFor } from '../core/api/api-error';
+import { ApiService } from '../core/api/api.service';
 import { AUTO_LOCK_CHOICES, AutoLockService } from '../core/autolock/auto-lock.service';
 import { SessionService } from '../core/session/session.service';
 import { ThemeService, type ThemeChoice } from '../core/theme/theme.service';
 import { ToastService } from '../core/ui/toast.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
 import { Icon, type IconName } from '../shared/icon';
+import { SessionsPanel } from './sessions-panel';
 
 @Component({
   selector: 'app-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PasswordInput, Icon],
+  imports: [ReactiveFormsModule, PasswordInput, Icon, SessionsPanel],
   template: `
     <div class="page">
       <header class="page-head">
@@ -138,6 +140,7 @@ import { Icon, type IconName } from '../shared/icon';
 
       <section class="group" aria-labelledby="s-sessions">
         <h2 id="s-sessions">Sessions</h2>
+        <div class="card sessions"><app-sessions-panel /></div>
         <form class="card form" [formGroup]="allForm" (ngSubmit)="logoutAll()" novalidate>
           <p class="desc">
             Sign out on every device, including this one. Confirm with your master password.
@@ -161,6 +164,47 @@ import { Icon, type IconName } from '../shared/icon';
             </p>
           }
         </form>
+      </section>
+
+      <section class="group" aria-labelledby="s-about">
+        <h2 id="s-about">About</h2>
+        <div class="card about">
+          <p class="desc">
+            r16a vault is built on open source software. Passphrases use the EFF large wordlist by
+            the Electronic Frontier Foundation, licensed under CC BY 3.0 US, with the dice numbers
+            removed.
+          </p>
+          <ul class="links">
+            <li>
+              <a href="/licenses/third-party.txt" target="_blank" rel="noopener"
+                >Third party licences</a
+              >
+            </li>
+            <li>
+              <a href="/licenses/eff-wordlist-CC-BY-3.0.txt" target="_blank" rel="noopener"
+                >EFF wordlist attribution</a
+              >
+            </li>
+            <li>
+              <a href="/licenses/inter-OFL-1.1.txt" target="_blank" rel="noopener"
+                >Inter font licence</a
+              >
+            </li>
+            <li>
+              <a href="/licenses/jetbrains-mono-OFL-1.1.txt" target="_blank" rel="noopener"
+                >JetBrains Mono font licence</a
+              >
+            </li>
+            <li>
+              <a href="/licenses/tabler-icons-MIT.txt" target="_blank" rel="noopener"
+                >Tabler Icons licence</a
+              >
+            </li>
+            @if (privacyUrl()) {
+              <li><a [href]="privacyUrl()" target="_blank" rel="noopener">Privacy notice</a></li>
+            }
+          </ul>
+        </div>
       </section>
 
       <section class="group" aria-labelledby="s-delete">
@@ -335,6 +379,24 @@ import { Icon, type IconName } from '../shared/icon';
       display: flex;
       justify-content: flex-end;
     }
+    .sessions {
+      padding: 6px 18px;
+    }
+    .about {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 18px;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 13px;
+    }
     .danger {
       border-color: hsl(var(--danger-h) var(--danger-s) 50% / 0.35);
     }
@@ -366,6 +428,13 @@ export class SettingsPage {
   private readonly toast = inject(ToastService);
   private readonly fb = inject(NonNullableFormBuilder);
 
+  constructor() {
+    inject(ApiService)
+      .authConfig()
+      .then((c) => this.privacyUrl.set(c.privacyUrl ?? ''))
+      .catch(() => undefined);
+  }
+
   protected readonly min = MIN_MASTER_PASSWORD;
   protected readonly lockChoices = AUTO_LOCK_CHOICES;
   protected readonly themes: { value: ThemeChoice; label: string; icon: IconName }[] = [
@@ -375,6 +444,7 @@ export class SettingsPage {
   ];
 
   protected readonly busy = signal(false);
+  protected readonly privacyUrl = signal('');
 
   protected readonly pwForm = this.fb.group({
     current: ['', Validators.required],

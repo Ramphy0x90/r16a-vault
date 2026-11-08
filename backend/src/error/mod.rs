@@ -44,13 +44,6 @@ impl AppError {
     }
 }
 
-impl AppError {
-    /// Panic responses bypass handlers, so they are built here with the same marker.
-    pub fn into_response_for_panic(self) -> Response<axum::body::Body> {
-        self.into_response()
-    }
-}
-
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
         // sqlx errors carry SQL text and server messages but never bound parameter values,

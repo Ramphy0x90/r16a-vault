@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
 import '../api/api_client.dart';
+import '../api/dto.dart';
 import '../crypto/protocol.dart';
 import '../crypto/vault_crypto.dart';
 import '../prefs/prefs.dart';
@@ -47,8 +48,8 @@ class SessionService {
     }
     try {
       final me = await _api.me();
-      _me = _Me(me['username'] as String, me['salt'] as String, KdfParams.fromJson(me['kdf'] as Map<String, dynamic>));
-      _vault.setLocked(_me!.username);
+      _me = _Me(me.username, me.salt, me.kdf);
+      _vault.setLocked(me.username);
     } catch (_) {
       await _tokens.clear();
       _vault.setAnonymous();
@@ -70,7 +71,7 @@ class SessionService {
       );
       pendingOidc = null;
       await _adopt(res);
-      _vault.setUnlocked(_me!.username, vaultKey);
+      _vault.setUnlocked(res.username, vaultKey);
     } catch (_) {
       vaultKey.dispose();
       rethrow;
@@ -80,16 +81,12 @@ class SessionService {
   Future<void> login(String username, String password) async {
     final crypto = await _crypto;
     final pre = await _api.prelogin(username);
-    final keys = await crypto.deriveSubkeys(
-      password,
-      pre['salt'] as String,
-      KdfParams.fromJson(pre['kdf'] as Map<String, dynamic>),
-    );
+    final keys = await crypto.deriveSubkeys(password, pre.salt, pre.kdf);
     try {
       final res = await _api.login(username, crypto.authKeyB64(keys));
-      final vaultKey = crypto.unwrap(keys, res['wrappedVaultKey'] as String);
+      final vaultKey = crypto.unwrap(keys, res.wrappedVaultKey);
       await _adopt(res);
-      _vault.setUnlocked(_me!.username, vaultKey);
+      _vault.setUnlocked(res.username, vaultKey);
     } finally {
       keys.dispose();
     }
@@ -101,10 +98,10 @@ class SessionService {
     final keys = await crypto.deriveSubkeys(password, me.salt, me.kdf);
     try {
       final res = await _api.unlock(crypto.authKeyB64(keys));
-      final vaultKey = crypto.unwrap(keys, res['wrappedVaultKey'] as String);
-      final token = res['token'];
-      if (token is String) await _tokens.write(token);
-      _me = _Me(me.username, res['salt'] as String, KdfParams.fromJson(res['kdf'] as Map<String, dynamic>));
+      final vaultKey = crypto.unwrap(keys, res.wrappedVaultKey);
+      final token = res.token;
+      if (token != null) await _tokens.write(token);
+      _me = _Me(me.username, res.salt, res.kdf);
       _vault.setUnlocked(me.username, vaultKey);
     } finally {
       keys.dispose();
@@ -127,15 +124,27 @@ class SessionService {
     final code = params['code'];
     if (code == null) throw StateError(params['error'] ?? 'oidc-failed');
     final res = await _api.oidcExchange(code, verifier);
-    final token = res['token'] as String;
-    if (res['state'] == 'pending') {
-      pendingOidc = (token: token, suggestedUsername: res['suggestedUsername'] as String?);
+    if (res.pending) {
+      pendingOidc = (token: res.token, suggestedUsername: res.suggestedUsername);
       return true;
     }
-    await _tokens.write(token);
+    await _tokens.write(res.token);
     await bootstrap();
     return false;
   }
+
+  /// Points the app at a server. The address is validated and stored, and the API client is
+  /// rebuilt so the next request goes to the new server.
+  Future<void> useServer(String input) async {
+    final url = normaliseServerUrl(input);
+    if (url == null) throw const FormatException('invalid server address');
+    if (url != _ref.read(prefsProvider).getString(PrefKeys.serverUrl)) {
+      await _ref.read(prefsProvider).setString(PrefKeys.serverUrl, url);
+      _ref.invalidate(apiClientProvider);
+    }
+  }
+
+  Future<bool> oidcEnabled() async => (await _api.authConfig())['oidcEnabled'] == true;
 
   void lock() => _vault.lock();
 
@@ -198,23 +207,12 @@ class SessionService {
     final cached = _me;
     if (cached != null) return cached;
     final me = await _api.me();
-    return _me = _Me(
-      me['username'] as String,
-      me['salt'] as String,
-      KdfParams.fromJson(me['kdf'] as Map<String, dynamic>),
-    );
+    return _me = _Me(me.username, me.salt, me.kdf);
   }
 
-  Future<void> _adopt(Map<String, dynamic> res) async {
-    final token = res['token'];
-    if (token is! String) throw StateError('server did not return a session token');
-    await _tokens.write(token);
-    final user = res['user'] as Map<String, dynamic>;
-    _me = _Me(
-      user['username'] as String,
-      res['salt'] as String,
-      KdfParams.fromJson(res['kdf'] as Map<String, dynamic>),
-    );
+  Future<void> _adopt(SignedIn res) async {
+    await _tokens.write(res.token);
+    _me = _Me(res.username, res.salt, res.kdf);
   }
 
   Future<void> _reset() async {

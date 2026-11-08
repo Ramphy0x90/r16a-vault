@@ -24,19 +24,47 @@ use crate::{
 pub const FLOW_TTL: Duration = Duration::from_secs(600);
 pub const CODE_TTL: Duration = Duration::from_secs(60);
 
+pub use crate::auth::dto::ClientKind;
+
+/// What a mobile one time code stands for once redeemed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ClientKind {
-    Web,
-    Mobile,
+enum CodeKind {
+    PreAuth,
+    Pending,
 }
 
-impl ClientKind {
+impl CodeKind {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Web => "web",
-            Self::Mobile => "mobile",
+            Self::PreAuth => "pre_auth",
+            Self::Pending => "pending",
         }
     }
+
+    fn parse(s: &str) -> Option<Self> {
+        match s {
+            "pre_auth" => Some(Self::PreAuth),
+            "pending" => Some(Self::Pending),
+            _ => None,
+        }
+    }
+}
+
+/// Why an ID token or code exchange was rejected. Logged for operators, never shown to users.
+#[derive(Debug, thiserror::Error)]
+enum VerifyError {
+    #[error("oidc is disabled")]
+    Disabled,
+    #[error("provider unavailable {0}")]
+    Provider(String),
+    #[error("token endpoint missing {0}")]
+    TokenEndpoint(String),
+    #[error("code exchange failed {0}")]
+    Exchange(String),
+    #[error("no id token in the response")]
+    NoIdToken,
+    #[error("id token rejected {0}")]
+    Claims(String),
 }
 
 fn random_token() -> Result<String, AppError> {
@@ -124,11 +152,7 @@ pub async fn callback(
     let flow = repository::take_flow(&state.db, &crypto::sha256(state_param.as_bytes()))
         .await?
         .ok_or(AppError::BadRequest("oidc-state"))?;
-    let client = if flow.client == "mobile" {
-        ClientKind::Mobile
-    } else {
-        ClientKind::Web
-    };
+    let client = ClientKind::parse(&flow.client).ok_or_else(|| AppError::internal("unknown oidc client kind"))?;
     if flow.expires_at <= OffsetDateTime::now_utc() {
         return Ok(Callback {
             client,
@@ -174,7 +198,7 @@ pub async fn callback(
                         &repository::NewCode {
                             code_hash: &crypto::sha256(code.as_bytes()),
                             challenge: flow.mobile_challenge.as_deref().unwrap_or_default(),
-                            kind: "pre_auth",
+                            kind: CodeKind::PreAuth.as_str(),
                             session_id: Some(issued.session_id),
                             issuer: None,
                             subject: None,
@@ -214,7 +238,7 @@ pub async fn callback(
                     &repository::NewCode {
                         code_hash: &crypto::sha256(code.as_bytes()),
                         challenge: flow.mobile_challenge.as_deref().unwrap_or_default(),
-                        kind: "pending",
+                        kind: CodeKind::Pending.as_str(),
                         session_id: None,
                         issuer: Some(&issuer),
                         subject: Some(&subject),
@@ -239,25 +263,31 @@ async fn verify(
     state: &AppState,
     code: &str,
     flow: &repository::FlowRow,
-) -> Result<(String, String, Option<String>), String> {
-    let provider = state.oidc.as_ref().ok_or("disabled")?;
-    let oidc = provider.client(false).await.map_err(|e| e.to_string())?;
+) -> Result<(String, String, Option<String>), VerifyError> {
+    let provider = state.oidc.as_ref().ok_or(VerifyError::Disabled)?;
+    let oidc = provider
+        .client(false)
+        .await
+        .map_err(|e| VerifyError::Provider(e.to_string()))?;
     let response = oidc
         .exchange_code(AuthorizationCode::new(code.to_owned()))
-        .map_err(|e| format!("token endpoint {e}"))?
+        .map_err(|e| VerifyError::TokenEndpoint(e.to_string()))?
         .set_pkce_verifier(PkceCodeVerifier::new(flow.pkce_verifier.clone()))
         .request_async(&provider.http)
         .await
-        .map_err(|e| format!("code exchange {e}"))?;
-    let id_token = response.id_token().ok_or("no id token")?;
+        .map_err(|e| VerifyError::Exchange(e.to_string()))?;
+    let id_token = response.id_token().ok_or(VerifyError::NoIdToken)?;
     let nonce = Nonce::new(flow.nonce.clone());
     let claims = match id_token.claims(&oidc.id_token_verifier(), &nonce) {
         Ok(c) => c.clone(),
         Err(first) => {
-            let fresh = provider.client(true).await.map_err(|e| e.to_string())?;
+            let fresh = provider
+                .client(true)
+                .await
+                .map_err(|e| VerifyError::Provider(e.to_string()))?;
             id_token
                 .claims(&fresh.id_token_verifier(), &nonce)
-                .map_err(|e| format!("id token {first} then {e}"))?
+                .map_err(|e| VerifyError::Claims(format!("{first} then {e}")))?
                 .clone()
         }
     };
@@ -288,15 +318,11 @@ pub async fn exchange(state: &AppState, code: &str, verifier: &str) -> Result<Ex
     if !bool::from(s256(verifier).as_bytes().ct_eq(row.challenge.as_bytes())) {
         return Err(AppError::BadRequest("oidc-exchange"));
     }
-    match (row.kind.as_str(), row.session_id) {
-        ("pre_auth", Some(session_id)) => {
-            let session = sqlx::query_scalar!(
-                "select user_id from sessions where id = $1 and state = 'pre_auth'",
-                session_id
-            )
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or(AppError::BadRequest("oidc-exchange"))?;
+    match (CodeKind::parse(&row.kind), row.session_id) {
+        (Some(CodeKind::PreAuth), Some(session_id)) => {
+            let session = sessions::repository::user_of_pre_auth(&state.db, session_id)
+                .await?
+                .ok_or(AppError::BadRequest("oidc-exchange"))?;
             let valid = ValidSession {
                 id: session_id,
                 user_id: session,
@@ -310,7 +336,7 @@ pub async fn exchange(state: &AppState, code: &str, verifier: &str) -> Result<Ex
                 suggested_username: None,
             })
         }
-        ("pending", _) => {
+        (Some(CodeKind::Pending), _) => {
             let (issuer, subject) = row
                 .issuer
                 .zip(row.subject)
@@ -341,4 +367,14 @@ pub fn pending_token<'a>(state: &AppState, headers: &'a HeaderMap) -> Option<&'a
         .get("x-r16a-oidc-pending")
         .and_then(|v| v.to_str().ok())
         .or_else(|| cookies::read(headers, cookies::pending_name(&state.config)))
+}
+
+/// Suggested username for a pending first sign in, or None when there is no valid pending token.
+pub async fn pending(state: &AppState, headers: &HeaderMap) -> Result<Option<Option<String>>, AppError> {
+    let Some(token) = pending_token(state, headers) else {
+        return Ok(None);
+    };
+    Ok(repository::peek_pending(&state.db, &crypto::sha256(token.as_bytes()))
+        .await?
+        .map(|row| row.suggested_username))
 }

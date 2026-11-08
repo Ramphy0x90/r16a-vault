@@ -33,6 +33,7 @@ export interface AuthConfig {
   readonly registrationEnabled: boolean;
   readonly oidcEnabled: boolean;
   readonly oidcDisplayName?: string;
+  readonly privacyUrl?: string;
 }
 
 export interface CredentialDto {
@@ -41,4 +42,13 @@ export interface CredentialDto {
   readonly secret: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+}
+
+export interface SessionDto {
+  readonly id: string;
+  readonly current: boolean;
+  readonly state: 'pre_auth' | 'full';
+  readonly userAgent: string | null;
+  readonly createdAt: string;
+  readonly lastSeenAt: string;
 }

@@ -24,6 +24,16 @@ pub async fn list(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<Vec<Cr
     .await
 }
 
+/// Serialises quota checks for one user until the surrounding transaction ends, so parallel
+/// creates cannot all pass the count and exceed the limit together.
+pub async fn lock_user_quota(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<()> {
+    let (hi, _) = user_id.as_u64_pair();
+    sqlx::query!("select pg_advisory_xact_lock($1)", hi.cast_signed())
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 pub async fn count(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<i64> {
     sqlx::query_scalar!(
         r#"select count(*) as "n!" from credentials where user_id = $1"#,
@@ -33,7 +43,7 @@ pub async fn count(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<i64> 
     .await
 }
 
-/// Returns None when the id already exists, for this user or any other.
+/// Returns None when this user already has a credential with that id.
 pub async fn insert(
     db: impl PgExecutor<'_>,
     id: Uuid,
@@ -44,7 +54,7 @@ pub async fn insert(
     sqlx::query_as!(
         CredentialRow,
         "insert into credentials (id, user_id, meta_ct, secret_ct) values ($1, $2, $3, $4)
-         on conflict (id) do nothing
+         on conflict (user_id, id) do nothing
          returning id, meta_ct, secret_ct, created_at, updated_at",
         id,
         user_id,

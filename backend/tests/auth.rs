@@ -183,7 +183,8 @@ async fn throttle_backs_off_and_is_keyed_by_hmac(db: PgPool) {
         .fetch_all(&db)
         .await
         .unwrap();
-    assert_eq!(rows.len(), 2);
+    // One source bucket and one account bucket for each name.
+    assert_eq!(rows.len(), 4);
     assert!(
         rows.iter()
             .all(|k| k.len() == 32 && !k.windows(5).any(|w| w == b"grace"))
@@ -198,7 +199,7 @@ async fn throttle_backs_off_and_is_keyed_by_hmac(db: PgPool) {
         .fetch_one(&db)
         .await
         .unwrap();
-    assert_eq!(left, 1, "success resets the account's row");
+    assert_eq!(left, 2, "success resets grace's buckets and leaves phantom's");
 }
 
 #[sqlx::test]
@@ -212,7 +213,7 @@ async fn throttle_rows_expire_on_ttl(db: PgPool) {
     let removed = r16a_vault_backend::auth::throttle::delete_stale(&db, std::time::Duration::from_secs(86_400))
         .await
         .unwrap();
-    assert_eq!(removed, 1);
+    assert_eq!(removed, 2, "the source and account buckets of the one failed login");
 }
 
 #[sqlx::test]
@@ -595,4 +596,127 @@ async fn health_endpoints(db: PgPool) {
         app.call("GET", "/readyz", &Auth::None, None).await.status,
         StatusCode::OK
     );
+}
+
+/// A stranger who knows only the username must not be able to lock the owner out, neither
+/// from signing in elsewhere nor from unlocking a session the owner already holds.
+#[sqlx::test]
+async fn username_spraying_does_not_lock_out_the_owner(db: PgPool) {
+    use axum::{body::Body, http::Request};
+    let app = TestApp::new(db, &[("R16A_TRUSTED_PROXY_CIDRS", "203.0.113.7/32")]);
+    let u = User::new("victim", 21);
+    let session = app.register(&u).await;
+
+    let attempt = |ip: &str, key: [u8; 32]| {
+        Request::post("/api/v1/auth/login")
+            .header(header::ORIGIN, common::ORIGIN)
+            .header("x-r16a-request", "1")
+            .header("x-forwarded-for", ip)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({"username": "victim", "authKey": b64(&key), "client": "web"}).to_string(),
+            ))
+            .unwrap()
+    };
+    for _ in 0..6 {
+        app.send(attempt("198.51.100.66", [0u8; 32])).await;
+    }
+    assert_eq!(
+        app.send(attempt("198.51.100.66", u.auth_key)).await.status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the attacker's own network is blocked"
+    );
+    assert_eq!(
+        app.send(attempt("192.0.2.10", u.auth_key)).await.status,
+        StatusCode::OK,
+        "the owner elsewhere is not"
+    );
+    let unlock = app
+        .call(
+            "POST",
+            "/api/v1/auth/unlock",
+            &Auth::Cookie(session),
+            Some(json!({"authKey": b64(&u.auth_key)})),
+        )
+        .await;
+    assert_eq!(unlock.status, StatusCode::OK, "unlocking an existing session is not");
+}
+
+/// Claims are atomic, so a burst of parallel attempts cannot all pass while the bucket is open.
+#[sqlx::test]
+async fn parallel_attempts_cannot_share_one_window(db: PgPool) {
+    use r16a_vault_backend::auth::throttle::{Bucket, PER_SOURCE, claim};
+    let bucket = Bucket {
+        key: [7u8; 32],
+        policy: PER_SOURCE,
+    };
+    let tasks = (0..30).map(|_| {
+        let db = db.clone();
+        tokio::spawn(async move { claim(&db, &bucket).await.is_ok() })
+    });
+    let mut passed = 0;
+    for t in tasks {
+        if t.await.unwrap() {
+            passed += 1;
+        }
+    }
+    assert_eq!(
+        passed,
+        PER_SOURCE.free + 1,
+        "only the free attempts and the first delayed one get through"
+    );
+}
+
+/// A panicking handler still yields a problem document carrying every security header.
+#[sqlx::test]
+async fn panics_are_rendered_with_headers(db: PgPool) {
+    use axum::{Router, body::Body, extract::connect_info::MockConnectInfo, http::Request, routing::get};
+    use r16a_vault_backend::{app, state::AppState};
+    use std::net::SocketAddr;
+    let state = AppState::new(db.clone(), common::config(&[])).unwrap();
+    async fn boom() -> StatusCode {
+        let fail = std::hint::black_box(true);
+        if fail {
+            panic!("boom");
+        }
+        StatusCode::OK
+    }
+    let extra = Router::new().route("/boom", get(boom));
+    let router = app::router_with(state, extra).layer(MockConnectInfo(SocketAddr::from(([127, 0, 0, 1], 1))));
+    let app = TestApp { router, db };
+    let r = app.send(Request::get("/boom").body(Body::empty()).unwrap()).await;
+    assert_eq!(r.status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(r.problem_type(), "urn:r16a:problem:internal");
+    assert!(r.body["requestId"].as_str().is_some_and(|s| !s.is_empty()));
+    assert_eq!(r.headers.get(header::CACHE_CONTROL).unwrap(), "no-store");
+    assert!(r.headers.get(header::CONTENT_SECURITY_POLICY).is_some());
+}
+
+/// Hashes made with weaker parameters are upgraded transparently on the next login.
+#[sqlx::test]
+async fn login_rehashes_weak_hashes(db: PgPool) {
+    use argon2::{Algorithm, Argon2, Params, Version, password_hash::PasswordHasher};
+    let app = TestApp::new(db.clone(), &[]);
+    let u = User::new("legacy", 22);
+    app.register(&u).await;
+    let weak = Argon2::new(
+        Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(8 * 1024, 1, 1, None).unwrap(),
+    )
+    .hash_password_with_salt(&u.auth_key, b"legacy-salt-0123")
+    .unwrap()
+    .to_string();
+    sqlx::query("update users set auth_hash = $1 where username = 'legacy'")
+        .bind(&weak)
+        .execute(&db)
+        .await
+        .unwrap();
+    assert_eq!(app.login("legacy", &u.auth_key).await.status, StatusCode::OK);
+    let stored: String = sqlx::query_scalar("select auth_hash from users where username = 'legacy'")
+        .fetch_one(&db)
+        .await
+        .unwrap();
+    assert!(stored.starts_with("$argon2id$v=19$m=19456,t=2,p=1$"), "{stored}");
+    assert_eq!(app.login("legacy", &u.auth_key).await.status, StatusCode::OK);
 }

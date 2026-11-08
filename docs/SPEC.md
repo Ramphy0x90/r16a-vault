@@ -158,7 +158,7 @@ Contents, each with hex inputs and hex outputs.
 5. Negative cases that must fail to open (swapped AAD, wrong version byte, truncated blob).
 6. TOTP codes. RFC 6238 Appendix B vectors for SHA1, SHA256 and SHA512, plus a base32 normalisation case (lowercase with spaces) and an `otpauth://` URI case with 8 digits and 60 s period.
 
-Generation. A Node script (`shared/scripts/generate-vectors.mjs`) using `libsodium-wrappers-sumo` produces vectors 1 to 5. To avoid the web suite only agreeing with itself, the Argon2id and AEAD values are cross-checked during generation against an independent implementation (Python `argon2-cffi` low-level API and `cryptography`'s ChaCha20Poly1305 over HChaCha20 subkey, or PyNaCl if available). TOTP vectors come from the RFC text. The Angular and Flutter suites both assert against this file.
+Generation. A Node script (`shared/scripts/generate-vectors.mjs`) using `libsodium-wrappers-sumo` produces vectors 1 to 5. To avoid the web suite only agreeing with itself, the Argon2id, KDF and AEAD values are recomputed with independent RustCrypto implementations by `shared/tools/vector-verify`. TOTP vectors come from the RFC text. The Angular and Flutter suites both assert against this file.
 
 ---
 
@@ -216,10 +216,10 @@ Verifies `authKey` against the session's user with the same throttle and rate li
 | Layer | Mechanism |
 |---|---|
 | Per-IP | `governor` 0.10 keyed limiter (the engine behind `tower_governor`, used directly for problem+json 429 responses). Two buckets. Proof endpoints (login, register, unlock, logout-all, change password, delete account, OIDC exchange) burst 10, refill 1 per 6 s. Prelogin and OIDC start or callback burst 30, refill 1 per 2 s. IPv6 is bucketed per /64. In memory, so per replica. |
-| Per-account | Table `login_throttle(key_hash, failures, next_allowed_at)`, where `key_hash = HMAC-SHA256(R16A_PRELOGIN_SECRET, "r16a:throttle" || 0x00 || normalized_username)`, so the table never contains a raw username (A1). After the 5th consecutive failure, delay = min(2^(failures − 5) s, 15 min). Requests before `next_allowed_at` get 429 with `Retry-After`. Keyed by normalised username **including unknown usernames**, so throttling behaviour does not reveal existence. Reset on success. Never a permanent lockout. Rows untouched for 24 h (`R16A_THROTTLE_TTL_SECS`) are deleted by the cleanup task. DB-backed, so global across replicas. |
+| Per-account | Table `login_throttle(key_hash, failures, next_allowed_at)`. Keys are HMACs of the server secret with a purpose label, so the table never contains a username, IP or session id (A1). Three bucket kinds. **Source** (account plus client network, IPv4 /32 or IPv6 /64), used for anonymous login, delay 2^(n − 5) s after the 5th failure, capped at 15 min. **Account** (all anonymous logins for one name), free for 20 failures, capped at 60 s, so a distributed attacker gets about one guess a minute while the owner never waits longer. **Session** (one bucket per session), used for unlock, logout-all, change password and delete account, so a stranger who only knows the username cannot block those at all. Each attempt is claimed atomically by one upsert before Argon2 runs, so parallel requests cannot share a window. Unknown usernames are throttled like real ones. Success deletes the buckets. Never a permanent lockout. Rows untouched for 24 h (`R16A_THROTTLE_TTL_SECS`) are deleted by the cleanup task. DB-backed, so global across replicas. |
 | Client IP | Taken from the socket peer, or from the right-most untrusted `X-Forwarded-For` entry only when the peer is inside `R16A_TRUSTED_PROXY_CIDRS`. |
 | Request shape | Global body limit 64 KiB, request timeout 15 s, `#[serde(deny_unknown_fields)]` on every DTO, base64 decode with explicit length checks. |
-| Argon2 concurrency | A semaphore caps concurrent server Argon2 verifications (default 2 × CPU) so a flood of logins cannot exhaust memory. |
+| Argon2 concurrency | A semaphore caps concurrent server Argon2 runs (2 × CPU). The permit moves into the blocking task, so a request timeout cannot release it while hashing continues. A request that cannot get a permit within 2 s is refused with 429 instead of queueing. |
 
 ### 4.8 CSRF and origin
 
@@ -260,7 +260,7 @@ Base path `/api/v1`. JSON bodies use camelCase. Binary fields are standard base6
 | POST | `/auth/login` | none | `{username, authKey, client}` | 200 `LoginResponse` |
 | POST | `/auth/unlock` | session (full or pre_auth) | `{authKey}` | 200 `{wrappedVaultKey, kdf, salt, token?}`, token rotated |
 | POST | `/auth/logout` | session | none | 204, cookie cleared |
-| POST | `/auth/logout-all` | full session | `{authKey}` | 204, all sessions (full and pre_auth) and any OIDC pending and exchange rows for the user deleted, cookie cleared |
+| POST | `/auth/logout-all` | full session | `{authKey}` | 204, all sessions (full and pre_auth) deleted, mobile OIDC exchange codes go with them by cascade, cookie cleared. Pending OIDC identities belong to no account and simply expire |
 | GET | `/auth/config` | none | none | 200 `{oidcEnabled, oidcDisplayName, registrationEnabled}` |
 | GET | `/auth/oidc/start` | none | query `client`, `challenge?` | 303 to IdP, sets the flow binding cookie for web |
 | GET | `/auth/oidc/callback` | flow cookie (web) | query from IdP | 303 to `/unlock`, `/register?oidc=1`, `/login?oidc_error=<slug>` or the app scheme |
@@ -268,6 +268,8 @@ Base path `/api/v1`. JSON bodies use camelCase. Binary fields are standard base6
 | GET | `/auth/oidc/pending` | pending cookie or `X-R16a-Oidc-Pending` | none | 200 `{suggestedUsername?}` |
 | GET | `/me` | session | none | 200 `{id, username, kdf, salt, sessionState, createdAt}` |
 | PUT | `/me/master-password` | full session | `{currentAuthKey, newAuthKey, newSalt, newKdf, newWrappedVaultKey}` | 204 |
+| GET | `/me/sessions` | full session | none | 200 `[{id, current, state, userAgent, createdAt, lastSeenAt}]` |
+| DELETE | `/me/sessions/{id}` | full session | none | 204, 400 for the current session (use logout), 404 for unknown or foreign ids |
 | DELETE | `/me` | full session | `{authKey}` | 204, cookie cleared |
 | GET | `/credentials` | full session | none | 200 `[{id, meta, secret, createdAt, updatedAt}]` ordered by `createdAt` |
 | POST | `/credentials` | full session | `{id, meta, secret}` | 201 same shape |
@@ -317,7 +319,7 @@ create index on sessions (user_id);
 create index on sessions (expires_at);
 
 create table credentials (
-  id          uuid primary key,
+  id          uuid not null,          -- generated by the client, unique per owner
   user_id     uuid not null references users(id) on delete cascade,
   meta_ct     bytea not null check (octet_length(meta_ct) between 41 and 8192),
   secret_ct   bytea not null check (octet_length(secret_ct) between 41 and 8192),
@@ -604,7 +606,7 @@ As in the brief section 9.2, specifically:
 | A1 | `login_throttle` rows are keyed by `HMAC(server_secret, normalized_username)`, never the raw username. Expired rows are removed on a TTL. |
 | A2 | Test vectors include a non-ASCII master password in composed and decomposed forms, asserted by both clients. |
 | A3 | Style nonce generated per response by nginx, injected into the header and `ngCspNonce`. `index.html` is `Cache-Control: no-store`. Fallback after about 30 minutes of trouble is `style-src 'self'` with no inline styles. |
-| A4 | Session token rotated on login and on unlock. Logout-all also deletes OIDC pre-auth sessions and pending rows. |
+| A4 | Session token rotated on login and on unlock. Logout-all deletes every session including OIDC pre-auth ones. Pending OIDC rows belong to no account and expire within 10 minutes. |
 | A5 | Clipboard trade-off D14 accepted. The toast must state that the clipboard will be cleared. |
 
 ### 11.2 Changes made during implementation
@@ -622,6 +624,22 @@ As in the brief section 9.2, specifically:
 | D27 | `cargo deny` ignores RUSTSEC-2023-0071 (Marvin attack in `rsa`). | The advisory covers RSA private key operations. `openidconnect` only verifies provider signatures with public keys, and the server holds no RSA private key. Recorded with this reason in `backend/deny.toml`. |
 | D28 | `Cache-Control: no-store` and the API security headers apply to every backend response, including problem responses. | Found during the final review, problem responses were rebuilt without the headers of inner layers. Covered by a test. |
 | D29 | Kubernetes namespace enforces Pod Security Admission `restricted`. | Any later manifest that drops the hardening is rejected by the API server. |
+
+### 11.3 Changes from the security, quality, pentest and compliance review (2026-11-08)
+
+| # | Change | Reason |
+|---|---|---|
+| R1 | Throttle split into source, account and session buckets, claimed atomically (4.7). | A stranger could keep a known user locked out of login, unlock and account actions, and parallel requests could share one throttle window. |
+| R2 | Argon2 permit held by the blocking task, bounded wait. | A request timeout released the permit while hashing continued, defeating the memory cap. |
+| R3 | Secrets refuse template placeholders, the public development values outside development mode and repetitive values. | Length alone accepted the shipped placeholders. |
+| R4 | Kubernetes owner database credentials in their own Secret, mounted only by the migration Job. Database TLS with `verify-full`. | The runtime pod could read the schema owner credentials, and `require` does not verify the server. |
+| R5 | Compose trusts only the pinned web container for `X-Forwarded-For`. Kubernetes documents that NetworkPolicy must be enforced. | The Docker gateway and an unenforced pod network allowed spoofing the rate limit key. |
+| R6 | Panics render through the problem and security header layers. | A panic produced a bare 500 without headers. |
+| R7 | Credential primary key is `(user_id, id)`, quota check serialised per user. | A 409 revealed ids in other accounts, and parallel creates could pass the quota. |
+| R8 | Clipboard clearing retries on focus (web), uses local only and expiring pasteboard items (iOS) and compares a change marker instead of reading (mobile), and clears on lock. | Clears silently failed after switching apps, and copies synced across Apple devices. |
+| R9 | iOS session token is this device only, Android excludes app data from backup and device transfer. | The token could leave the device through iOS backups. |
+| R10 | Active sessions screen on web and mobile, `GET /me/sessions`, `DELETE /me/sessions/{id}`. | Gives the stored user agent a purpose and lets users end sessions they do not recognise. |
+| R11 | nginx logs keep only the client network and no user agent, compose rotates logs, `R16A_PRIVACY_URL` links a privacy notice, licences and the EFF attribution ship with both apps. | Data minimisation and licence obligations. |
 
 ## 12. Future features, kept possible
 

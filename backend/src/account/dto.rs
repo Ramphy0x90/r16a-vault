@@ -31,3 +31,21 @@ pub struct ChangePasswordRequest {
     #[schema(format = Byte)]
     pub new_wrapped_vault_key: String,
 }
+
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionDto {
+    pub id: Uuid,
+    /// True for the session making this request.
+    pub current: bool,
+    /// `pre_auth` or `full`.
+    pub state: String,
+    /// As sent by the device, at most 256 characters. Clients turn it into a readable name.
+    pub user_agent: Option<String>,
+    #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String, format = DateTime)]
+    pub created_at: OffsetDateTime,
+    #[serde(with = "time::serde::rfc3339")]
+    #[schema(value_type = String, format = DateTime)]
+    pub last_seen_at: OffsetDateTime,
+}

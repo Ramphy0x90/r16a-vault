@@ -18,19 +18,6 @@ class CredentialsScreen extends ConsumerStatefulWidget {
 }
 
 class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
-  String _query = '';
-
-  List<CredentialEntry> _filter(List<CredentialEntry> list) {
-    final q = _query.trim().toLowerCase();
-    final sorted = [...list]
-      ..sort((a, b) => (a.meta?.name ?? '').toLowerCase().compareTo((b.meta?.name ?? '').toLowerCase()));
-    if (q.isEmpty) return sorted;
-    return sorted.where((e) {
-      final m = e.meta;
-      return m != null && [m.name, m.username, m.url ?? ''].any((f) => f.toLowerCase().contains(q));
-    }).toList();
-  }
-
   void _open(CredentialEntry e) {
     if (e.meta == null) return;
     showModalBottomSheet<void>(
@@ -44,6 +31,8 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(credentialsProvider);
+    final query = ref.watch(credentialQueryProvider);
+    final visible = ref.watch(visibleCredentialsProvider).value ?? const <CredentialEntry>[];
     final muted = Theme.of(context).extension<Tokens>()!.textMuted;
     return Scaffold(
       appBar: AppBar(title: const Text('Vault')),
@@ -91,7 +80,7 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
             ),
           ),
         ),
-        AsyncData(:final value) => RefreshIndicator(
+        AsyncData() => RefreshIndicator(
           onRefresh: () => ref.refresh(credentialsProvider.future),
           child: ListView(
             padding: const EdgeInsets.only(bottom: 96),
@@ -103,14 +92,14 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
                     prefixIcon: TIcon(tabler.Search()),
                     labelText: 'Search credentials',
                   ),
-                  onChanged: (v) => setState(() => _query = v),
+                  onChanged: ref.read(credentialQueryProvider.notifier).set,
                 ),
               ),
-              for (final e in _filter(value)) CredentialTile(entry: e, onTap: () => _open(e)),
-              if (_filter(value).isEmpty)
+              for (final e in visible) CredentialTile(entry: e, onTap: () => _open(e)),
+              if (visible.isEmpty)
                 Padding(
                   padding: const EdgeInsets.all(24),
-                  child: Text('No credentials match "$_query".', style: TextStyle(color: muted)),
+                  child: Text('No credentials match "$query".', style: TextStyle(color: muted)),
                 ),
             ],
           ),

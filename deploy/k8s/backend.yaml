@@ -82,6 +82,14 @@ spec:
             runAsUser: 65532
             capabilities:
               drop: ["ALL"]
+          volumeMounts:
+            - name: db-ca
+              mountPath: /etc/r16a/db-ca
+              readOnly: true
+      volumes:
+        - name: db-ca
+          configMap:
+            name: r16a-db-ca
 ---
 apiVersion: v1
 kind: Service

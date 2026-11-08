@@ -1,6 +1,6 @@
 //! Shared application state handed to every handler.
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use secrecy::ExposeSecret;
 use sqlx::PgPool;
@@ -8,6 +8,9 @@ use tokio::sync::Semaphore;
 use zeroize::Zeroizing;
 
 use crate::{config::Config, crypto, error::AppError, http::rate_limit::IpRateLimiter, oidc::provider::Provider};
+
+/// How long a request may wait for an Argon2 slot before it is refused as busy.
+const ARGON_QUEUE_WAIT: Duration = Duration::from_secs(2);
 
 #[derive(Clone)]
 pub struct AppState {
@@ -57,19 +60,35 @@ impl AppState {
         self.config.pepper().map(|p| Zeroizing::new(p.to_vec()))
     }
 
-    pub async fn hash_auth_key(&self, key: Zeroizing<Vec<u8>>) -> Result<String, AppError> {
-        let _permit = self.argon_permits.acquire().await.map_err(AppError::internal)?;
-        let pepper = self.pepper_owned();
-        tokio::task::spawn_blocking(move || crypto::hash_auth_key(&key, pepper.as_deref().map(Vec::as_slice)))
+    /// Runs one Argon2 job on the blocking pool while holding a slot. The slot moves into the
+    /// blocking closure, so it is released only when the hashing actually ends, even if the
+    /// request that started it times out and is dropped. Waiting for a slot is bounded, and a
+    /// saturated server answers busy instead of queueing work it cannot finish in time.
+    async fn run_argon<T: Send + 'static>(
+        &self,
+        job: impl FnOnce(Option<&[u8]>) -> Result<T, AppError> + Send + 'static,
+    ) -> Result<T, AppError> {
+        let permit = tokio::time::timeout(ARGON_QUEUE_WAIT, self.argon_permits.clone().acquire_owned())
             .await
-            .map_err(AppError::internal)?
+            .map_err(|_| AppError::TooManyRequests {
+                retry_after: Duration::from_secs(2),
+            })?
+            .map_err(AppError::internal)?;
+        let pepper = self.pepper_owned();
+        tokio::task::spawn_blocking(move || {
+            let _slot = permit;
+            job(pepper.as_deref().map(Vec::as_slice))
+        })
+        .await
+        .map_err(AppError::internal)?
+    }
+
+    pub async fn hash_auth_key(&self, key: Zeroizing<Vec<u8>>) -> Result<String, AppError> {
+        self.run_argon(move |pepper| crypto::hash_auth_key(&key, pepper)).await
     }
 
     pub async fn verify_auth_key(&self, key: Zeroizing<Vec<u8>>, phc: String) -> Result<bool, AppError> {
-        let _permit = self.argon_permits.acquire().await.map_err(AppError::internal)?;
-        let pepper = self.pepper_owned();
-        tokio::task::spawn_blocking(move || crypto::verify_auth_key(&key, &phc, pepper.as_deref().map(Vec::as_slice)))
+        self.run_argon(move |pepper| crypto::verify_auth_key(&key, &phc, pepper))
             .await
-            .map_err(AppError::internal)?
     }
 }

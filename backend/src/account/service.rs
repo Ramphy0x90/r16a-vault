@@ -2,11 +2,11 @@
 
 use uuid::Uuid;
 
-use super::dto::ChangePasswordRequest;
+use super::dto::{ChangePasswordRequest, MeResponse, SessionDto};
 use crate::{
     auth::{service as auth, users},
-    crypto,
     error::AppError,
+    http::wire,
     sessions::{repository as sessions, service::ValidSession},
     state::AppState,
 };
@@ -52,8 +52,8 @@ pub async fn revoke_everything(state: &AppState, user_id: Uuid) -> Result<(), Ap
     Ok(())
 }
 
-/// Deletes the account. Foreign keys cascade to sessions and credentials. The throttle
-/// row is removed too so nothing derived from the username remains.
+/// Deletes the account. Foreign keys cascade to sessions and credentials. Throttle rows are
+/// keyed by HMACs that cannot be traced back to the account and expire on their own TTL.
 pub async fn delete_account(
     state: &AppState,
     session: &ValidSession,
@@ -62,7 +62,50 @@ pub async fn delete_account(
     let user = auth::require_fresh_proof(state, session, proof).await?;
     let mut tx = state.db.begin().await?;
     users::delete(&mut *tx, user.id).await?;
-    crate::auth::throttle::reset(&mut *tx, &crypto::throttle_key(state.prelogin_secret(), &user.username)).await?;
     tx.commit().await?;
     Ok(())
+}
+
+/// The signed in user's own profile, as returned by `GET /me`.
+pub async fn profile(state: &AppState, session: &ValidSession) -> Result<MeResponse, AppError> {
+    let user = users::find_by_id(&state.db, session.user_id)
+        .await?
+        .ok_or(AppError::Unauthenticated)?;
+    Ok(MeResponse {
+        id: user.id,
+        kdf: wire::KdfDto::from_params(auth::kdf_of(&user)?),
+        salt: wire::b64(&user.kdf_salt),
+        session_state: session.state.as_str().to_owned(),
+        created_at: user.created_at,
+        username: user.username,
+    })
+}
+
+/// Where the account is signed in, so the owner can spot and end sessions they do not recognise.
+pub async fn sessions(state: &AppState, session: &ValidSession) -> Result<Vec<SessionDto>, AppError> {
+    Ok(sessions::list_for_user(&state.db, session.user_id)
+        .await?
+        .into_iter()
+        .map(|s| SessionDto {
+            current: s.id == session.id,
+            id: s.id,
+            state: s.state,
+            user_agent: s.user_agent,
+            created_at: s.created_at,
+            last_seen_at: s.last_seen_at,
+        })
+        .collect())
+}
+
+/// Ends one other session. The current one is ended with logout instead, which also clears
+/// the cookie, so asking for it here is refused.
+pub async fn revoke_session(state: &AppState, session: &ValidSession, id: Uuid) -> Result<(), AppError> {
+    if id == session.id {
+        return Err(AppError::BadRequest("use-logout"));
+    }
+    if sessions::delete_for_user(&state.db, session.user_id, id).await? {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
 }

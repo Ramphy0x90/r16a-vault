@@ -45,6 +45,24 @@ pub enum ClientKind {
     Mobile,
 }
 
+impl ClientKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Web => "web",
+            Self::Mobile => "mobile",
+        }
+    }
+
+    /// Strict parsing, so a corrupted or unexpected value is an error rather than a default.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "web" => Some(Self::Web),
+            "mobile" => Some(Self::Mobile),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PreloginRequest {
@@ -128,4 +146,6 @@ pub struct AuthConfigResponse {
     pub oidc_enabled: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub oidc_display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub privacy_url: Option<String>,
 }

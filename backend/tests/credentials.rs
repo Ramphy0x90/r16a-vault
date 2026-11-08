@@ -116,15 +116,42 @@ async fn cross_user_isolation(db: PgPool) {
         "foreign rows look missing, not forbidden"
     );
 
-    // Reusing another user's id must not overwrite or reveal their row.
+    // Reusing another user's id neither touches nor reveals their row, it creates B's own.
     let mut hijack = new_cred();
     hijack["id"] = json!(id);
     assert_eq!(
-        app.call("POST", "/api/v1/credentials", &b, Some(hijack)).await.status,
-        StatusCode::CONFLICT
+        app.call("POST", "/api/v1/credentials", &b, Some(hijack.clone()))
+            .await
+            .status,
+        StatusCode::CREATED
     );
+    let list_b = app.call("GET", "/api/v1/credentials", &b, None).await;
+    assert_eq!(list_b.body[0]["meta"], hijack["meta"]);
 
     let list_a = app.call("GET", "/api/v1/credentials", &a, None).await;
     assert_eq!(list_a.body.as_array().unwrap().len(), 1);
     assert_eq!(list_a.body[0]["meta"], cred["meta"]);
+}
+
+#[sqlx::test]
+async fn enforces_the_per_user_limit(db: PgPool) {
+    let app = TestApp::new(db.clone(), &[]);
+    let t = Auth::Cookie(app.register(&User::new("hoarder", 5)).await);
+    sqlx::query(
+        "insert into credentials (id, user_id, meta_ct, secret_ct)
+         select gen_random_uuid(), u.id, decode(repeat('01', 41), 'hex'), decode(repeat('01', 41), 'hex')
+         from users u, generate_series(1, 4999) where u.username = 'hoarder'",
+    )
+    .execute(&db)
+    .await
+    .unwrap();
+    assert_eq!(
+        app.call("POST", "/api/v1/credentials", &t, Some(new_cred()))
+            .await
+            .status,
+        StatusCode::CREATED
+    );
+    let over = app.call("POST", "/api/v1/credentials", &t, Some(new_cred())).await;
+    assert_eq!(over.status, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(over.problem_type(), "urn:r16a:problem:credential-limit");
 }

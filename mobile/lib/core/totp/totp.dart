@@ -43,6 +43,13 @@ TotpConfig? parseTotp(String input) {
   return TotpConfig(secret, Algorithm.SHA1, 6, 30);
 }
 
+/// The form stored in the secret blob (SPEC 3.6). otpauth links are kept whole so their
+/// parameters survive, bare secrets are normalised base32.
+String canonicalTotpSecret(String input) {
+  final trimmed = input.trim();
+  return trimmed.toLowerCase().startsWith('otpauth://') ? trimmed : normaliseBase32(trimmed);
+}
+
 /// `isGoogle` makes the otp package base32 decode the secret, as authenticator apps do.
 /// Without it the package would treat the text itself as the key.
 String totpCode(TotpConfig c, int timestampMs) => OTP.generateTOTPCodeString(

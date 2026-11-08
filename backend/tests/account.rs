@@ -117,7 +117,8 @@ async fn delete_account_cascades(db: PgPool) {
             .contains("Max-Age=0")
     );
 
-    for table in ["users", "sessions", "credentials", "login_throttle"] {
+    // Throttle rows are unlinkable HMACs and expire on their own TTL, so they are not checked.
+    for table in ["users", "sessions", "credentials"] {
         let n: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!("select count(*) from {table}")))
             .fetch_one(&db)
             .await
@@ -128,16 +129,98 @@ async fn delete_account_cascades(db: PgPool) {
 }
 
 #[sqlx::test]
-async fn sensitive_operations_share_the_login_throttle(db: PgPool) {
+async fn sensitive_operations_are_throttled_per_session_not_per_login(db: PgPool) {
     let app = TestApp::new(db, &[]);
     let u = User::new("dan", 4);
     let t = Auth::Cookie(app.register(&u).await);
     for _ in 0..5 {
-        app.call("DELETE", "/api/v1/me", &t, Some(json!({"authKey": b64(&[0u8; 32])})))
+        let r = app
+            .call("DELETE", "/api/v1/me", &t, Some(json!({"authKey": b64(&[0u8; 32])})))
             .await;
+        assert_eq!(r.status, StatusCode::UNAUTHORIZED);
     }
+    let blocked = app
+        .call("DELETE", "/api/v1/me", &t, Some(json!({"authKey": b64(&u.auth_key)})))
+        .await;
+    assert_eq!(
+        blocked.status,
+        StatusCode::TOO_MANY_REQUESTS,
+        "the session's own bucket is closed"
+    );
     assert_eq!(
         app.login("dan", &u.auth_key).await.status,
-        StatusCode::TOO_MANY_REQUESTS
+        StatusCode::OK,
+        "anonymous login uses separate buckets"
+    );
+}
+
+#[sqlx::test]
+async fn lists_and_revokes_own_sessions_only(db: PgPool) {
+    use axum::{body::Body, http::Request};
+    let app = TestApp::new(db, &[]);
+    let u = User::new("multi", 31);
+    let laptop = app.register(&u).await;
+    let phone = app
+        .send(
+            Request::post("/api/v1/auth/login")
+                .header(header::ORIGIN, common::ORIGIN)
+                .header("x-r16a-request", "1")
+                .header(header::USER_AGENT, "r16a vault mobile (Android)")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({"username": "multi", "authKey": b64(&u.auth_key), "client": "web"}).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .cookie_token()
+        .unwrap();
+
+    let list = app
+        .call("GET", "/api/v1/me/sessions", &Auth::Cookie(laptop.clone()), None)
+        .await;
+    let rows = list.body.as_array().unwrap();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows.iter().filter(|r| r["current"] == true).count(), 1);
+    let other = rows.iter().find(|r| r["current"] == false).unwrap();
+    assert_eq!(other["userAgent"], "r16a vault mobile (Android)");
+    let current_id = rows.iter().find(|r| r["current"] == true).unwrap()["id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // A stranger cannot see or end these sessions.
+    let stranger = Auth::Cookie(app.register(&User::new("stranger", 32)).await);
+    let path = format!("/api/v1/me/sessions/{}", other["id"].as_str().unwrap());
+    assert_eq!(
+        app.call("DELETE", &path, &stranger, None).await.status,
+        StatusCode::NOT_FOUND
+    );
+
+    assert_eq!(
+        app.call(
+            "DELETE",
+            &format!("/api/v1/me/sessions/{current_id}"),
+            &Auth::Cookie(laptop.clone()),
+            None
+        )
+        .await
+        .status,
+        StatusCode::BAD_REQUEST,
+        "the current session ends with logout"
+    );
+    assert_eq!(
+        app.call("DELETE", &path, &Auth::Cookie(laptop.clone()), None)
+            .await
+            .status,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        app.call("GET", "/api/v1/me", &Auth::Cookie(phone), None).await.status,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        app.call("GET", "/api/v1/me", &Auth::Cookie(laptop), None).await.status,
+        StatusCode::OK
     );
 }

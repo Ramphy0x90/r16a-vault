@@ -10,11 +10,10 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
 use super::{
-    cookies, repository,
+    cookies,
     service::{self, ClientKind, Outcome},
 };
 use crate::{
-    crypto,
     error::AppError,
     http::{client_ip::ClientIp, json::ApiJson},
     sessions,
@@ -39,9 +38,8 @@ pub async fn start(
 ) -> Result<Response, AppError> {
     state.prelogin_limiter.check(ip.0)?;
     let client = match q.client.as_deref() {
-        None | Some("web") => ClientKind::Web,
-        Some("mobile") => ClientKind::Mobile,
-        Some(_) => return Err(AppError::BadRequest("invalid-client")),
+        None => ClientKind::Web,
+        Some(c) => ClientKind::parse(c).ok_or(AppError::BadRequest("invalid-client"))?,
     };
     let started = service::start(&state, client, q.challenge.as_deref()).await?;
     let mut res = Redirect::to(&started.redirect).into_response();
@@ -163,16 +161,8 @@ pub struct PendingResponse {
 /// Lets the register page show that it is completing an OIDC sign in.
 #[utoipa::path(get, path = "/api/v1/auth/oidc/pending", tag = "oidc",
     responses((status = 200, body = PendingResponse), (status = 404)))]
-pub async fn pending(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, AppError> {
-    let token = service::pending_token(&state, &headers).ok_or(AppError::NotFound)?;
-    let row = repository::peek_pending(&state.db, &crypto::sha256(token.as_bytes()))
-        .await?
-        .ok_or(AppError::NotFound)?;
-    Ok((
-        StatusCode::OK,
-        Json(PendingResponse {
-            suggested_username: row.suggested_username,
-        }),
-    )
-        .into_response())
+pub async fn pending(State(state): State<AppState>, ip: ClientIp, headers: HeaderMap) -> Result<Response, AppError> {
+    state.prelogin_limiter.check(ip.0)?;
+    let suggested_username = service::pending(&state, &headers).await?.ok_or(AppError::NotFound)?;
+    Ok((StatusCode::OK, Json(PendingResponse { suggested_username })).into_response())
 }

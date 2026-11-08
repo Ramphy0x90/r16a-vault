@@ -65,11 +65,16 @@ export class CredentialsStore {
   async load(): Promise<void> {
     this.state.set('loading');
     this.error.set('');
+    // A lock during the round trip resets the store. Results from before it must not land.
+    const epoch = this.vault.lockEpoch();
     try {
       const rows = await this.api.listCredentials();
-      this.entries.set(await Promise.all(rows.map((r) => this.decryptRow(r))));
+      const entries = await Promise.all(rows.map((r) => this.decryptRow(r)));
+      if (this.vault.lockEpoch() !== epoch) return;
+      this.entries.set(entries);
       this.state.set('ready');
     } catch (e) {
+      if (this.vault.lockEpoch() !== epoch) return;
       this.error.set(messageFor(e));
       this.state.set('error');
     }

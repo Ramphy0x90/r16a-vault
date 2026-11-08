@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "insert into credentials (id, user_id, meta_ct, secret_ct) values ($1, $2, $3, $4)\n         on conflict (id) do nothing\n         returning id, meta_ct, secret_ct, created_at, updated_at",
+  "query": "insert into credentials (id, user_id, meta_ct, secret_ct) values ($1, $2, $3, $4)\n         on conflict (user_id, id) do nothing\n         returning id, meta_ct, secret_ct, created_at, updated_at",
   "describe": {
     "columns": [
       {
@@ -75,5 +75,5 @@
       false
     ]
   },
-  "hash": "c3d592cde32b2d9ea97e3ca520ad419fe1b88adf7343226dd3998917e81fd337"
+  "hash": "68406958cb4a3e4628c47e1e0fdcd05264dff2132b6dc7bb1f661bf1f6b4cfc0"
 }

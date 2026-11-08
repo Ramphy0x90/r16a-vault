@@ -7,6 +7,7 @@ use axum::{
     extract::{DefaultBodyLimit, State},
     http::{HeaderName, HeaderValue, StatusCode, header},
     middleware,
+    response::IntoResponse,
     routing::{delete, get, post, put},
 };
 use tower::ServiceBuilder;
@@ -22,6 +23,12 @@ pub const BODY_LIMIT: usize = 64 * 1024;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 pub fn router(state: AppState) -> Router {
+    router_with(state, Router::new())
+}
+
+/// Builds the app with extra routes mounted inside the full middleware stack. Tests use it to
+/// prove that failures in handlers, such as panics, still pass through every layer.
+pub fn router_with(state: AppState, extra: Router<AppState>) -> Router {
     let api = Router::new()
         .route("/auth/config", get(auth::handlers::auth_config))
         .route("/auth/prelogin", post(auth::handlers::prelogin))
@@ -35,6 +42,8 @@ pub fn router(state: AppState) -> Router {
         .route("/auth/oidc/exchange", post(oidc::handlers::exchange))
         .route("/auth/oidc/pending", get(oidc::handlers::pending))
         .route("/me", get(account::handlers::me).delete(account::handlers::delete_me))
+        .route("/me/sessions", get(account::handlers::sessions))
+        .route("/me/sessions/{id}", delete(account::handlers::revoke_session))
         .route("/me/master-password", put(account::handlers::change_master_password))
         .route(
             "/credentials",
@@ -77,6 +86,7 @@ pub fn router(state: AppState) -> Router {
         .nest("/api/v1", api)
         .route("/healthz", get(|| async { StatusCode::OK }))
         .route("/readyz", get(readyz))
+        .merge(extra)
         .fallback(|| async { StatusCode::NOT_FOUND })
         .layer(
             ServiceBuilder::new()
@@ -92,11 +102,13 @@ pub fn router(state: AppState) -> Router {
                         tracing::info_span!("http", method = %req.method(), path = %req.uri().path())
                     }),
                 )
-                .layer(CatchPanicLayer::custom(|_| {
-                    error::AppError::internal("handler panicked").into_response_for_panic()
-                }))
                 .layer(middleware::from_fn_with_state(state.clone(), error::problem_layer))
                 .layer(security_headers)
+                // Inside the problem and header layers, so a panic still yields a problem
+                // document with request id, no-store and the API security headers.
+                .layer(CatchPanicLayer::custom(|_| {
+                    error::AppError::internal("handler panicked").into_response()
+                }))
                 .layer(TimeoutLayer::with_status_code(
                     StatusCode::REQUEST_TIMEOUT,
                     REQUEST_TIMEOUT,
@@ -108,7 +120,7 @@ pub fn router(state: AppState) -> Router {
 }
 
 async fn readyz(State(state): State<AppState>) -> StatusCode {
-    let probe = sqlx::query_scalar!("select 1 as \"one!\"").fetch_one(&state.db);
+    let probe = crate::sessions::repository::ping(&state.db);
     match tokio::time::timeout(Duration::from_secs(2), probe).await {
         Ok(Ok(_)) => StatusCode::OK,
         _ => StatusCode::SERVICE_UNAVAILABLE,

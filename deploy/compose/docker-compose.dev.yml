@@ -19,12 +19,19 @@ x-backend-env: &backend-env
   R16A_DEV_INSECURE_COOKIE: "true"
   R16A_PRELOGIN_SECRET: dev-only-prelogin-secret-0123456789abcdef
   R16A_AUTH_PEPPER: dev-only-auth-pepper-0123456789abcdefghij
-  R16A_TRUSTED_PROXY_CIDRS: 172.16.0.0/12
   R16A_LOG_FORMAT: pretty
   RUST_LOG: info,sqlx=warn
 
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
 services:
   db:
+    <<: *logging
     image: postgres:18
     environment:
       POSTGRES_USER: postgres
@@ -43,6 +50,7 @@ services:
       retries: 30
 
   migrate:
+    <<: *logging
     profiles: [backend]
     build:
       context: ../../backend
@@ -54,6 +62,7 @@ services:
         condition: service_healthy
 
   backend:
+    <<: *logging
     profiles: [backend]
     image: r16a-vault-backend:dev
     environment: *backend-env
@@ -69,6 +78,7 @@ services:
       retries: 20
 
   web:
+    <<: *logging
     profiles: [web]
     build:
       context: ../..

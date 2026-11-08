@@ -1,6 +1,13 @@
 import vectors from '../../../../../shared/crypto-test-vectors.json';
 
-import { groupCode, normaliseBase32, parseTotp, secondsRemaining, totpCode } from './totp';
+import {
+  canonicalTotpSecret,
+  groupCode,
+  normaliseBase32,
+  parseTotp,
+  secondsRemaining,
+  totpCode,
+} from './totp';
 
 describe('totp', () => {
   for (const v of vectors.totp) {
@@ -50,5 +57,20 @@ describe('totp', () => {
     expect(c && secondsRemaining(c, 60_000)).toBe(30);
     expect(groupCode('123456')).toBe('123 456');
     expect(groupCode('12345678')).toBe('1234 5678');
+  });
+
+  it('applies the same otpauth bounds as the mobile client', () => {
+    const base = 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP';
+    expect(parseTotp(base)).not.toBeNull();
+    expect(parseTotp(`${base}&digits=5`)).toBeNull();
+    expect(parseTotp(`${base}&digits=11`)).toBeNull();
+    expect(parseTotp(`${base}&period=301`)).toBeNull();
+    expect(parseTotp('otpauth://totp/x?secret=JBSWY3DP')).toBeNull();
+  });
+
+  it('stores bare secrets normalised and otpauth links whole', () => {
+    expect(canonicalTotpSecret(' jbsw y3dp-ehpk 3pxp== ')).toBe('JBSWY3DPEHPK3PXP');
+    const uri = 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&digits=8';
+    expect(canonicalTotpSecret(` ${uri} `)).toBe(uri);
   });
 });

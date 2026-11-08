@@ -51,9 +51,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
-      await ref.read(prefsProvider).setString(PrefKeys.serverUrl, normaliseServerUrl(_server.text)!);
-      ref.invalidate(apiClientProvider);
-      await ref.read(sessionServiceProvider).register(_username.text.trim(), _password.text);
+      final session = ref.read(sessionServiceProvider);
+      await session.useServer(_server.text);
+      await session.register(_username.text.trim(), _password.text);
     } catch (e) {
       if (mounted) setState(() => _error = messageFor(e));
     } finally {

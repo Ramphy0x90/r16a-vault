@@ -8,6 +8,7 @@ import '../../core/theme/theme.dart';
 import '../../core/vault/vault_controller.dart';
 import '../auth/register_screen.dart' show minMasterPassword;
 import '../auth/widgets.dart';
+import 'sessions_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -102,6 +103,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Form(
                   key: _pwForm,
+                  onChanged: () => const UserActivity().dispatch(context),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -152,7 +154,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _Section(
               title: 'Sessions',
               children: [
-                const Text('Sign out on every device, including this one.'),
+                const SessionsSection(),
+                const Divider(height: 24),
+                const Text('Or sign out on every device at once, including this one.'),
                 const SizedBox(height: 12),
                 PasswordField(controller: _allPw, label: 'Master password'),
                 const SizedBox(height: 12),
@@ -160,6 +164,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 OutlinedButton(
                   onPressed: _busy ? null : () => _run((e) => _allError = e, () => session.logoutAll(_allPw.text)),
                   child: const Text('Sign out of all sessions'),
+                ),
+              ],
+            ),
+            _Section(
+              title: 'About',
+              children: [
+                const Text(
+                  'r16a vault is built on open source software. Passphrases use the EFF large wordlist by the '
+                  'Electronic Frontier Foundation, licensed CC BY 3.0 US, with the dice numbers removed.',
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton(
+                    onPressed: () => showLicensePage(context: context, applicationName: 'r16a vault'),
+                    child: const Text('Open source licences'),
+                  ),
                 ),
               ],
             ),
@@ -172,7 +193,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 TextField(
                   controller: _delUser,
                   autocorrect: false,
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    const UserActivity().dispatch(context);
+                    setState(() {});
+                  },
                   decoration: InputDecoration(labelText: 'Type your username $username to confirm'),
                 ),
                 const SizedBox(height: 12),
@@ -181,7 +205,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   obscureText: true,
                   enableSuggestions: false,
                   autocorrect: false,
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    const UserActivity().dispatch(context);
+                    setState(() {});
+                  },
                   decoration: const InputDecoration(labelText: 'Master password'),
                 ),
                 const SizedBox(height: 12),

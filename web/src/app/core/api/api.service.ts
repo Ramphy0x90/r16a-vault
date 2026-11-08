@@ -6,6 +6,7 @@ import type { KdfParams } from '../crypto/protocol';
 import { ApiError } from './api-error';
 import type {
   AuthConfig,
+  SessionDto,
   CredentialDto,
   LoginResponse,
   MeResponse,
@@ -85,6 +86,14 @@ export class ApiService {
     newWrappedVaultKey: string;
   }): Promise<unknown> {
     return this.call(this.http.put(`${BASE}/me/master-password`, body));
+  }
+
+  listSessions(): Promise<SessionDto[]> {
+    return this.call(this.http.get<SessionDto[]>(`${BASE}/me/sessions`));
+  }
+
+  revokeSession(id: string): Promise<unknown> {
+    return this.call(this.http.delete(`${BASE}/me/sessions/${encodeURIComponent(id)}`));
   }
 
   deleteAccount(authKey: string): Promise<unknown> {

@@ -493,3 +493,32 @@ async fn logout_all_removes_pre_auth_sessions_and_mobile_codes(db: PgPool) {
         .unwrap();
     assert_eq!((sessions, codes), (0, 0));
 }
+
+#[sqlx::test]
+async fn expired_flows_and_disabled_registration_are_refused(db: PgPool) {
+    let idp = spawn_idp().await;
+    let app = app(db.clone(), &idp);
+    let s = start(&app, "/api/v1/auth/oidc/start").await;
+    let code = grant(&idp, &s, "late");
+    sqlx::query("update oidc_flows set expires_at = now() - interval '1 second'")
+        .execute(&db)
+        .await
+        .unwrap();
+    let r = callback(&app, &code, &s.state, s.flow_cookie.as_deref()).await;
+    assert_eq!(location(&r), format!("{ORIGIN}/login?oidc_error=oidc-expired"));
+
+    let closed = TestApp::new(
+        db,
+        &[
+            ("R16A_OIDC_ENABLED", "true"),
+            ("R16A_OIDC_ISSUER_URL", &idp.issuer),
+            ("R16A_OIDC_CLIENT_ID", CLIENT_ID),
+            ("R16A_OIDC_CLIENT_SECRET", "test-secret"),
+            ("R16A_REGISTRATION_ENABLED", "false"),
+        ],
+    );
+    let s = start(&closed, "/api/v1/auth/oidc/start").await;
+    let code = grant(&idp, &s, "newcomer");
+    let r = callback(&closed, &code, &s.state, s.flow_cookie.as_deref()).await;
+    assert_eq!(location(&r), format!("{ORIGIN}/login?oidc_error=registration-disabled"));
+}

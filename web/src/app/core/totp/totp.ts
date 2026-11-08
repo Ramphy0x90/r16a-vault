@@ -28,6 +28,10 @@ export function parseTotp(input: string): TotpConfig | null {
       if (parsed instanceof HOTP || !(parsed instanceof TOTP)) return null;
       const algorithm = parsed.algorithm.toUpperCase();
       if (algorithm !== 'SHA1' && algorithm !== 'SHA256' && algorithm !== 'SHA512') return null;
+      // Same bounds as the mobile client, so an entry accepted here works there too.
+      if (parsed.digits < 6 || parsed.digits > 10 || parsed.period < 1 || parsed.period > 300)
+        return null;
+      if (parsed.secret.base32.replace(/=+$/, '').length < 16) return null;
       return { secret: parsed.secret, algorithm, digits: parsed.digits, period: parsed.period };
     }
     const b32 = normaliseBase32(trimmed);
@@ -36,6 +40,15 @@ export function parseTotp(input: string): TotpConfig | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * The form stored in the secret blob (SPEC 3.6). otpauth links are kept whole so their
+ * parameters survive, bare secrets are normalised base32.
+ */
+export function canonicalTotpSecret(input: string): string {
+  const trimmed = input.trim();
+  return /^otpauth:\/\//i.test(trimmed) ? trimmed : normaliseBase32(trimmed);
 }
 
 export function totpCode(config: TotpConfig, timestampMs: number): string {

@@ -104,3 +104,49 @@ pub async fn delete_expired(db: impl PgExecutor<'_>, idle_secs: f64) -> sqlx::Re
     .await?
     .rows_affected())
 }
+
+/// Owner of a session that is still waiting for its master password proof.
+pub async fn user_of_pre_auth(db: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<Uuid>> {
+    sqlx::query_scalar!("select user_id from sessions where id = $1 and state = 'pre_auth'", id)
+        .fetch_optional(db)
+        .await
+}
+
+/// Cheapest possible round trip, used by the readiness probe.
+pub async fn ping(db: impl PgExecutor<'_>) -> sqlx::Result<()> {
+    sqlx::query_scalar!(r#"select 1 as "one!""#)
+        .fetch_one(db)
+        .await
+        .map(|_| ())
+}
+
+pub struct SessionSummary {
+    pub id: Uuid,
+    pub state: String,
+    pub user_agent: Option<String>,
+    pub created_at: OffsetDateTime,
+    pub last_seen_at: OffsetDateTime,
+}
+
+/// The user's live sessions, most recently active first.
+pub async fn list_for_user(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<Vec<SessionSummary>> {
+    sqlx::query_as!(
+        SessionSummary,
+        "select id, state, user_agent, created_at, last_seen_at from sessions
+         where user_id = $1 and expires_at > now() order by last_seen_at desc",
+        user_id
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Removes one session of this user. Another user's session id simply matches nothing.
+pub async fn delete_for_user(db: impl PgExecutor<'_>, user_id: Uuid, id: Uuid) -> sqlx::Result<bool> {
+    Ok(
+        sqlx::query!("delete from sessions where id = $1 and user_id = $2", id, user_id)
+            .execute(db)
+            .await?
+            .rows_affected()
+            == 1,
+    )
+}

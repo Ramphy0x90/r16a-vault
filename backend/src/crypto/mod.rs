@@ -48,10 +48,6 @@ pub fn fake_prelogin_salt(secret: &[u8], username_norm: &str) -> [u8; KDF_SALT_L
     out
 }
 
-pub fn throttle_key(secret: &[u8], username_norm: &str) -> [u8; 32] {
-    hmac_sha256(secret, "r16a:throttle", username_norm.as_bytes())
-}
-
 /// Server Argon2id cost. The input is a uniformly random 256 bit key rather than a
 /// human password, so these OWASP minimum values are enough and keep login cheap
 /// to defend against floods.
@@ -134,6 +130,9 @@ mod tests {
 
     #[test]
     fn labels_separate_purposes() {
-        assert_ne!(throttle_key(b"k", "alice")[..16], fake_prelogin_salt(b"k", "alice")[..]);
+        assert_ne!(
+            hmac_sha256(b"k", "r16a:throttle:account", b"alice")[..16],
+            fake_prelogin_salt(b"k", "alice")[..]
+        );
     }
 }

@@ -32,13 +32,16 @@ pub async fn list(state: &AppState, user_id: Uuid) -> Result<Vec<CredentialDto>,
 pub async fn create(state: &AppState, user_id: Uuid, req: &CreateCredentialRequest) -> Result<CredentialDto, AppError> {
     let meta = wire::decode_blob(&req.meta, "invalid-meta")?;
     let secret = wire::decode_blob(&req.secret, "invalid-secret")?;
-    if repository::count(&state.db, user_id).await? >= MAX_PER_USER {
+    let mut tx = state.db.begin().await?;
+    repository::lock_user_quota(&mut *tx, user_id).await?;
+    if repository::count(&mut *tx, user_id).await? >= MAX_PER_USER {
         return Err(AppError::PayloadTooLarge("credential-limit"));
     }
-    repository::insert(&state.db, req.id, user_id, &meta, &secret)
+    let row = repository::insert(&mut *tx, req.id, user_id, &meta, &secret)
         .await?
-        .map(to_dto)
-        .ok_or(AppError::Conflict("credential-exists"))
+        .ok_or(AppError::Conflict("credential-exists"))?;
+    tx.commit().await?;
+    Ok(to_dto(row))
 }
 
 /// Deleting a row that belongs to someone else looks exactly like deleting a missing row.

@@ -1,6 +1,6 @@
 # r16a-vault
 
-A self-hosted, zero-knowledge credential vault. You keep logins (name, website, username, password, optional authenticator secret) in an account. Everything is encrypted on your device before it is sent, and the server only ever stores ciphertext it cannot read.
+A self-hosted, zero-knowledge credential vault. You keep logins (name, website, username, password, optional authenticator secret) in an account. Every entry is encrypted on your device before it is sent, so the server stores your vault contents only as ciphertext it cannot read. The operator of a server can still see account metadata: your username, sign in times, devices and client networks. [docs/OPERATING.md](docs/OPERATING.md) lists exactly what.
 
 | Part | Stack | Path |
 |---|---|---|
@@ -126,6 +126,7 @@ All settings are environment variables, validated at startup. Secrets have no de
 | `R16A_SESSION_IDLE_SECS` / `R16A_SESSION_ABSOLUTE_SECS` | `1800` / `43200` | Session idle timeout and absolute lifetime. |
 | `R16A_TRUSTED_PROXY_CIDRS` | none | Only peers in these ranges may set `X-Forwarded-For`. |
 | `R16A_REGISTRATION_ENABLED` | `true` | Turn off after creating your account. |
+| `R16A_PRIVACY_URL` | unset | Your privacy notice. Both apps link to it when set. Start from `docs/PRIVACY_NOTICE_TEMPLATE.md`. |
 | `R16A_RATE_LIMIT_BURST` / `R16A_RATE_LIMIT_PERIOD_MS` | `10` / `6000` | Per-IP limit for password proofs. Prelogin gets three times the burst. |
 | `R16A_DEV_INSECURE_COOKIE` | `false` | Plain HTTP on localhost only. |
 | `R16A_EXTRA_ORIGINS` | none | Further origins allowed by the CSRF check, comma separated. Development only, refused unless `R16A_DEV_INSECURE_COOKIE` is on. |
@@ -207,6 +208,10 @@ Against `docker compose up`, with the browser's network tab open:
 8. Delete the credential (the confirmation names it). Delete the account by typing the username and password; signing in now fails.
 9. In the network tab, check that no request or response contains a credential field, the master password, or the session token. Bodies hold only base64 ciphertext, key proofs and salts.
 
+## Running it for other people
+
+If you host accounts for anyone beyond your household you are responsible for their personal data. Read [docs/OPERATING.md](docs/OPERATING.md) for what the server stores, retention, backups, answering user requests, incident handling and the steps before publishing the mobile apps, and publish a privacy notice based on [docs/PRIVACY_NOTICE_TEMPLATE.md](docs/PRIVACY_NOTICE_TEMPLATE.md).
+
 ## Deploy to Kubernetes
 
 The manifests in `deploy/k8s` assume a kubeadm cluster with Traefik, cert-manager and an existing PostgreSQL instance.
@@ -232,7 +237,9 @@ The namespace enforces the Pod Security `restricted` profile. Network policies d
 - **Memory.** JavaScript and Dart strings can't be wiped. Byte buffers and libsodium keys are wiped and plaintext is dropped quickly, but this is best effort.
 - **Clipboard on web.** If the browser blocks reading the clipboard, it's cleared after 30 seconds regardless, which can erase something you copied later. OS clipboard managers may keep copies.
 - **Username enumeration** is possible through registration (the "taken" message). It's rate limited; turn off registration after setup.
-- **Rate limits are per replica.** The per-account backoff is global (stored in the database).
+- **Rate limits are per replica.** The per-account backoff is global (stored in the database). Under a distributed guessing attack, anonymous sign in to one account can be slowed to about one attempt a minute; unlocking an existing session is never affected.
+- **Kubernetes needs a NetworkPolicy-enforcing CNI** (Calico, Cilium). See [deploy/k8s/README.md](deploy/k8s/README.md).
+- **No project licence or security contact yet.** Add a `LICENSE` and `SECURITY.md` before sharing the code.
 - **No account recovery**, by design. A forgotten master password means a lost vault.
 - **Not yet done:** editing a credential, linking an existing local account to OIDC, export, QR import of authenticator secrets, biometric unlock, a browser extension.
 - **Mobile** was tested with unit, widget and live API tests and a debug APK build. It hasn't been run on a device or emulator, and the iOS build hasn't been tried.

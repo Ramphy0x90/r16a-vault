@@ -54,6 +54,7 @@ pub async fn auth_config(State(state): State<AppState>) -> Json<AuthConfigRespon
         registration_enabled: state.config.registration_enabled,
         oidc_enabled: oidc.is_some(),
         oidc_display_name: oidc.map(|o| o.display_name.clone()),
+        privacy_url: state.config.privacy_url.clone(),
     })
 }
 
@@ -100,7 +101,7 @@ pub async fn login(
     ApiJson(req): ApiJson<LoginRequest>,
 ) -> Result<Response, AppError> {
     state.ip_limiter.check(ip.0)?;
-    let auth = service::login(&state, &req.username, &req.auth_key, &headers).await?;
+    let auth = service::login(&state, ip.0, &req.username, &req.auth_key, &headers).await?;
     login_response(&state, auth, req.client, StatusCode::OK)
 }
 
@@ -138,9 +139,7 @@ fn cleared(state: &AppState) -> Response {
 /// Always succeeds, so a client can use it to reset local state even with a dead session.
 #[utoipa::path(post, path = "/api/v1/auth/logout", tag = "auth", responses((status = 204)))]
 pub async fn logout(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, AppError> {
-    if let Ok(s) = sessions::service::validate(&state, &headers).await {
-        sessions::repository::delete(&state.db, s.id).await?;
-    }
+    service::logout(&state, &headers).await?;
     Ok(cleared(&state))
 }
 

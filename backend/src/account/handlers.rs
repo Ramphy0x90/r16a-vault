@@ -2,36 +2,28 @@
 
 use axum::{
     Json,
-    extract::State,
+    extract::{Path, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 
+use uuid::Uuid;
+
 use super::{
-    dto::{ChangePasswordRequest, MeResponse},
+    dto::{ChangePasswordRequest, MeResponse, SessionDto},
     service,
 };
 use crate::{
-    auth::{dto::AuthKeyProof, service as auth, users},
+    auth::dto::AuthKeyProof,
     error::AppError,
-    http::{client_ip::ClientIp, json::ApiJson, wire},
+    http::{client_ip::ClientIp, json::ApiJson},
     sessions::{AnySession, FullSession, cookie},
     state::AppState,
 };
 
 #[utoipa::path(get, path = "/api/v1/me", tag = "account", responses((status = 200, body = MeResponse), (status = 401)))]
 pub async fn me(State(state): State<AppState>, AnySession(session): AnySession) -> Result<Json<MeResponse>, AppError> {
-    let user = users::find_by_id(&state.db, session.user_id)
-        .await?
-        .ok_or(AppError::Unauthenticated)?;
-    Ok(Json(MeResponse {
-        id: user.id,
-        kdf: wire::KdfDto::from_params(auth::kdf_of(&user)?),
-        salt: wire::b64(&user.kdf_salt),
-        session_state: session.state.as_str().to_owned(),
-        created_at: user.created_at,
-        username: user.username,
-    }))
+    Ok(Json(service::profile(&state, &session).await?))
 }
 
 #[utoipa::path(put, path = "/api/v1/me/master-password", tag = "account", request_body = ChangePasswordRequest,
@@ -61,4 +53,26 @@ pub async fn delete_me(
     res.headers_mut()
         .append(header::SET_COOKIE, cookie::clear(&state.config));
     Ok(res)
+}
+
+#[utoipa::path(get, path = "/api/v1/me/sessions", tag = "account",
+    responses((status = 200, body = [SessionDto]), (status = 401), (status = 403)))]
+pub async fn sessions(
+    State(state): State<AppState>,
+    FullSession(session): FullSession,
+) -> Result<Json<Vec<SessionDto>>, AppError> {
+    Ok(Json(service::sessions(&state, &session).await?))
+}
+
+#[utoipa::path(delete, path = "/api/v1/me/sessions/{id}", tag = "account",
+    params(("id" = Uuid, Path)), responses((status = 204), (status = 400), (status = 404)))]
+pub async fn revoke_session(
+    State(state): State<AppState>,
+    FullSession(session): FullSession,
+    Path(id): Path<String>,
+) -> Result<StatusCode, AppError> {
+    // A malformed id cannot exist, so it is reported as not found.
+    let id = Uuid::parse_str(&id).map_err(|_| AppError::NotFound)?;
+    service::revoke_session(&state, &session, id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
