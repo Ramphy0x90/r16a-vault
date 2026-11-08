@@ -75,7 +75,7 @@ export class CredentialsStore {
     }
   }
 
-  async add(input: NewCredential): Promise<void> {
+  async add(input: NewCredential): Promise<string> {
     const id = crypto.randomUUID();
     const meta: CredentialMeta = {
       name: input.name,
@@ -94,6 +94,7 @@ export class CredentialsStore {
       ...list,
       { id, meta, secretBlob: row.secret, createdAt: row.createdAt },
     ]);
+    return id;
   }
 
   async remove(id: string): Promise<void> {

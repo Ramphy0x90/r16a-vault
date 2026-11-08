@@ -5,18 +5,25 @@ import { Router } from '@angular/router';
 import { messageFor } from '../core/api/api-error';
 import { SessionService } from '../core/session/session.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
+import { Avatar } from '../shared/avatar';
+import { Icon } from '../shared/icon';
 import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './password-input';
 
 @Component({
   selector: 'app-unlock-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, AuthLayout, PasswordInput],
+  imports: [ReactiveFormsModule, AuthLayout, PasswordInput, Icon, Avatar],
   template: `
     <app-auth-layout
       heading="Unlock your vault"
-      [subtitle]="'Signed in as ' + (store.username() ?? '')"
+      subtitle="Your vault locked to keep it safe. Enter your master password to continue."
     >
+      <div class="who">
+        <app-avatar [name]="store.username() ?? '?'" [size]="28" />
+        <span class="name">{{ store.username() }}</span>
+        <app-icon class="lock" name="lock" [size]="14" />
+      </div>
       <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <!-- Lets password managers associate the master password with the right account. -->
         <input
@@ -39,7 +46,9 @@ import { PasswordInput } from './password-input';
           />
         </div>
         @if (error()) {
-          <p id="unlock-err" class="alert alert-error" role="alert">{{ error() }}</p>
+          <p id="unlock-err" class="alert alert-error" role="alert">
+            <app-icon name="alert-circle" [size]="16" /><span>{{ error() }}</span>
+          </p>
         }
         <button class="btn btn-primary btn-block" type="submit" [disabled]="busy()">
           @if (busy()) {
@@ -49,8 +58,39 @@ import { PasswordInput } from './password-input';
           }
         </button>
       </form>
-      <button type="button" class="btn btn-ghost btn-block" (click)="signOut()">Sign out</button>
+      <p footer>
+        Not you? <button type="button" class="linkish" (click)="signOut()">Sign out</button>
+      </p>
     </app-auth-layout>
+  `,
+  styles: `
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px 8px 8px;
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border-subtle);
+    }
+    .name {
+      flex: 1;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .lock {
+      color: var(--color-text-muted);
+    }
+    .linkish {
+      border: 0;
+      padding: 0;
+      background: none;
+      color: var(--color-link);
+      font: inherit;
+      font-weight: 500;
+      cursor: pointer;
+    }
   `,
 })
 export class UnlockPage {

@@ -17,138 +17,225 @@ import type { CredentialMeta } from '../core/crypto/vault-crypto.service';
 import { parseTotp, secondsRemaining, totpCode, type TotpConfig } from '../core/totp/totp';
 import { ToastService } from '../core/ui/toast.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
+import { Avatar } from '../shared/avatar';
 import { Dialog } from '../shared/dialog';
 import { Icon } from '../shared/icon';
+import { CopyButton } from './copy-button';
 import { CredentialsStore } from './credentials.store';
 import { SecretField } from './secret-field';
 import { TotpDisplay } from './totp-display';
+import { hostOf } from './url';
 
 export const REVEAL_MS = 30_000;
 export const TOTP_VISIBLE_MS = 90_000;
+const COPIED_MS = 1400;
+
+type CopyTarget = 'username' | 'password' | 'code';
 
 /**
- * Expanded view of one credential. Decrypts the secret blob only for the action asked for,
+ * Detail panel for one credential. Decrypts the secret blob only for the action asked for,
  * keeps plaintext in component signals, and drops it on hide, on timeout, on lock and when
- * the component is destroyed by navigation or collapse.
+ * the component is destroyed by navigation or a different selection.
  */
 @Component({
   selector: 'app-credential-details',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SecretField, TotpDisplay, Icon, Dialog],
+  imports: [SecretField, TotpDisplay, Icon, Dialog, Avatar, CopyButton],
   template: `
-    <div class="details stack">
-      <div class="line">
-        <span class="label">Username</span>
-        <span class="value">{{ meta().username || '–' }}</span>
-        @if (meta().username) {
-          <button
-            type="button"
-            class="icon-btn"
-            aria-label="Copy username"
-            (click)="copyUsername()"
-          >
-            <app-icon name="copy" />
-          </button>
+    <header class="head">
+      <app-avatar [name]="meta().name" [size]="44" />
+      <div class="titles">
+        <h2>{{ meta().name }}</h2>
+        @if (meta().url; as url) {
+          <a class="site" [href]="url" target="_blank" rel="noopener noreferrer">
+            {{ host() }} <app-icon name="external-link" [size]="13" />
+          </a>
         }
       </div>
-      @if (meta().url; as url) {
-        <div class="line">
-          <span class="label">Website</span>
-          <a class="value" [href]="url" target="_blank" rel="noopener noreferrer">{{ url }}</a>
+      <button type="button" class="btn btn-danger-ghost btn-sm" (click)="confirming.set(true)">
+        <app-icon name="trash" [size]="15" /> Delete
+      </button>
+    </header>
+
+    <div class="fields card">
+      <div class="field-row">
+        <span class="label-cell">Username</span>
+        <div class="value">{{ meta().username || '–' }}</div>
+        <div class="actions">
+          @if (meta().username) {
+            <app-copy-button
+              label="Copy username"
+              [copied]="copied() === 'username'"
+              (copyRequest)="copyUsername()"
+            />
+          }
+        </div>
+      </div>
+      <div class="field-row">
+        <span class="label-cell">Password</span>
+        <app-secret-field
+          label="Password"
+          [value]="password()"
+          [busy]="busy()"
+          [copied]="copied() === 'password'"
+          (revealChange)="toggleReveal()"
+          (copyRequest)="copyPassword()"
+        />
+      </div>
+      @if (meta().hasTotp) {
+        <div class="field-row">
+          <span class="label-cell">One time code</span>
+          @if (totp(); as t) {
+            <app-totp-display
+              [code]="code()"
+              [remaining]="remaining()"
+              [period]="t.period"
+              [copied]="copied() === 'code'"
+              (copyRequest)="copyCode()"
+              (hideRequest)="hideTotp()"
+            />
+          } @else {
+            <div class="value">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                (click)="showTotp()"
+                [disabled]="busy()"
+              >
+                <app-icon name="clock-hour-4" [size]="15" /> Show code
+              </button>
+            </div>
+            <div class="actions"></div>
+          }
         </div>
       }
-      <app-secret-field
-        label="Password"
-        [value]="password()"
-        [busy]="busy()"
-        (revealChange)="toggleReveal()"
-        (copyRequest)="copyPassword()"
-      />
-      @if (meta().hasTotp) {
-        @if (totp(); as t) {
-          <app-totp-display
-            [code]="code()"
-            [remaining]="remaining()"
-            [period]="t.period"
-            (copyRequest)="copyCode()"
-            (hideRequest)="hideTotp()"
-          />
-        } @else {
-          <div class="line">
-            <span class="label">One time code</span>
-            <button
-              type="button"
-              class="btn btn-secondary"
-              (click)="showTotp()"
-              [disabled]="busy()"
-            >
-              <app-icon name="clock" /> Show code
-            </button>
-          </div>
-        }
+      @if (meta().url; as url) {
+        <div class="field-row">
+          <span class="label-cell">Website</span>
+          <div class="value url">{{ url }}</div>
+          <div class="actions"></div>
+        </div>
       }
-      @if (error()) {
-        <p class="alert alert-error" role="alert">{{ error() }}</p>
-      }
-      <div class="actions">
-        <button type="button" class="btn btn-danger-outline" (click)="confirming.set(true)">
-          <app-icon name="trash" /> Delete
-        </button>
-      </div>
     </div>
 
-    <app-dialog heading="Delete credential" [open]="confirming()" (closed)="confirming.set(false)">
-      <div class="stack">
-        <p>
-          Delete <strong>{{ meta().name }}</strong
-          >? This cannot be undone.
-        </p>
-        <div class="row end">
-          <button type="button" class="btn btn-secondary" (click)="confirming.set(false)">
-            Cancel
-          </button>
-          <button type="button" class="btn btn-danger" (click)="remove()" [disabled]="busy()">
-            Delete {{ meta().name }}
-          </button>
-        </div>
+    @if (error()) {
+      <p class="alert alert-error" role="alert">
+        <app-icon name="alert-circle" [size]="16" /><span>{{ error() }}</span>
+      </p>
+    }
+
+    <p class="footnote">
+      <app-icon name="shield-lock" [size]="14" />
+      Encrypted on this device. Secrets are decrypted only while shown and hidden again after 30
+      seconds.
+    </p>
+
+    <app-dialog
+      heading="Delete credential?"
+      [description]="'Delete ' + meta().name + '? This cannot be undone.'"
+      [width]="420"
+      [open]="confirming()"
+      (closed)="confirming.set(false)"
+    >
+      <div class="confirm-actions">
+        <button type="button" class="btn btn-secondary" (click)="confirming.set(false)">
+          Cancel
+        </button>
+        <button type="button" class="btn btn-danger" (click)="remove()" [disabled]="busy()">
+          Delete {{ meta().name }}
+        </button>
       </div>
     </app-dialog>
   `,
   styles: `
-    .details {
-      padding: 0 var(--space-4) var(--space-4) calc(var(--space-4) + 40px + var(--space-3));
-      gap: var(--space-2);
+    :host {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
     }
-    .line {
+    .head {
       display: flex;
       align-items: center;
-      gap: var(--space-1);
-      min-height: var(--touch);
+      gap: 14px;
     }
-    .label {
-      width: 92px;
-      flex-shrink: 0;
-      font-size: 0.85rem;
-      font-weight: 600;
+    .titles {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+      flex: 1;
+    }
+    h2 {
+      font-size: 1.125rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .site {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      width: fit-content;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--color-text-muted);
+    }
+    .site:hover {
+      color: var(--color-link);
+    }
+    .fields {
+      margin: 0;
+      padding: 4px 0;
+    }
+    .field-row {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      padding: 6px 8px 6px 16px;
+    }
+    .field-row + .field-row {
+      border-top: 1px solid var(--color-border-subtle);
+    }
+    .label-cell {
+      font-size: 13px;
       color: var(--color-text-muted);
     }
     .value {
-      flex: 1;
       min-width: 0;
       overflow-wrap: anywhere;
     }
+    .url {
+      font-size: 13px;
+      color: var(--color-text-muted);
+    }
     .actions {
       display: flex;
+      gap: 2px;
+      min-width: 32px;
       justify-content: flex-end;
-      padding-top: var(--space-2);
     }
-    .end {
+    .footnote {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--color-text-muted);
+    }
+    .confirm-actions {
+      display: flex;
       justify-content: flex-end;
-      flex-wrap: wrap;
+      gap: 8px;
     }
-    @media (max-width: 520px) {
-      .details {
-        padding-left: var(--space-4);
+    @media (max-width: 560px) {
+      .field-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        row-gap: 2px;
+      }
+      .label-cell {
+        grid-column: 1 / -1;
+        font-size: 12px;
       }
     }
   `,
@@ -168,7 +255,9 @@ export class CredentialDetails {
   protected readonly busy = signal(false);
   protected readonly error = signal('');
   protected readonly confirming = signal(false);
+  protected readonly copied = signal<CopyTarget | null>(null);
 
+  protected readonly host = computed(() => hostOf(this.meta().url));
   protected readonly code = computed(() => {
     const t = this.totp();
     return t ? totpCode(t, this.now()) : '';
@@ -180,6 +269,7 @@ export class CredentialDetails {
 
   private revealTimer: ReturnType<typeof setTimeout> | null = null;
   private totpTimer: ReturnType<typeof setTimeout> | null = null;
+  private copiedTimer: ReturnType<typeof setTimeout> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -193,11 +283,20 @@ export class CredentialDetails {
       }
       untracked(() => this.discard());
     });
+    // A different selection reuses this component, so secrets of the previous item go first.
+    effect(() => {
+      this.credentialId();
+      untracked(() => {
+        this.discard();
+        this.error.set('');
+      });
+    });
     inject(DestroyRef).onDestroy(() => this.discard());
   }
 
-  protected copyUsername(): void {
-    void this.clipboard.copy(this.meta().username, 'Username', false);
+  protected async copyUsername(): Promise<void> {
+    if (await this.clipboard.copy(this.meta().username, 'Username', false))
+      this.flashCopied('username');
   }
 
   protected async toggleReveal(): Promise<void> {
@@ -213,7 +312,8 @@ export class CredentialDetails {
 
   protected async copyPassword(): Promise<void> {
     const secret = await this.withSecret();
-    if (secret) await this.clipboard.copy(secret.password, 'Password');
+    if (secret && (await this.clipboard.copy(secret.password, 'Password')))
+      this.flashCopied('password');
   }
 
   protected async showTotp(): Promise<void> {
@@ -229,8 +329,8 @@ export class CredentialDetails {
     this.totpTimer = setTimeout(() => this.hideTotp(), TOTP_VISIBLE_MS);
   }
 
-  protected copyCode(): void {
-    void this.clipboard.copy(this.code(), 'Code');
+  protected async copyCode(): Promise<void> {
+    if (await this.clipboard.copy(this.code(), 'Code')) this.flashCopied('code');
   }
 
   protected hideTotp(): void {
@@ -257,6 +357,12 @@ export class CredentialDetails {
     }
   }
 
+  private flashCopied(target: CopyTarget): void {
+    if (this.copiedTimer) clearTimeout(this.copiedTimer);
+    this.copied.set(target);
+    this.copiedTimer = setTimeout(() => this.copied.set(null), COPIED_MS);
+  }
+
   private async withSecret(): Promise<{ password: string; mfaSecret: string | null } | null> {
     this.busy.set(true);
     this.error.set('');
@@ -280,5 +386,6 @@ export class CredentialDetails {
     this.hidePassword();
     this.hideTotp();
     this.confirming.set(false);
+    this.copied.set(null);
   }
 }

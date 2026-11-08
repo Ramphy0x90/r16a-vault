@@ -497,50 +497,62 @@ mobile/lib/
 
 ## 10. Design system and UX
 
-### 10.1 Colour tokens
+### 10.1 Visual language and colour tokens
 
-HSL triplets in CSS custom properties. Scales 50 to 950 for brand (h 160, s 84%), neutral (h 160, s 8%), danger (h 0, s 72%), warning (h 38, s 92%). Brand lightness steps are 96, 90, 80, 65, 50, 39 (brand-500 anchor), 33, 26, 20, 15, 10. Neutral steps are 98, 95, 90, 80, 65, 50, 40, 30, 18, 11, 7. Flutter mirrors the same triplets with `HSLColor.fromAHSL`, and its widget tests run Flutter's text contrast and tap target guidelines.
+The interface is quiet and product grade. Neutral surfaces with hairline borders carry most of the screen, primary actions use an ink colour (near black in light mode, near white in dark mode), and the emerald brand is reserved for accents such as the active navigation icon, focus rings, the TOTP ring, switches and success states. Type is Inter (variable, self hosted through Fontsource so the CSP needs no external font source) with JetBrains Mono for passwords, codes and generator output. Icons are Tabler outline icons, generated into a small typed subset (`web/scripts/gen-icons.mjs`) and rendered as SVG paths without `innerHTML`, so Trusted Types stays untouched. Mobile uses `tabler_icons_next` through a small bridge widget that applies the Material icon theme colours.
 
-Semantic tokens per theme.
+HSL triplets in CSS custom properties. Scales 50 to 950 for brand (h 160, s 84%), neutral (h 160, s 6%), danger (h 0, s 72%), warning (h 38, s 92%), plus a symbol hue (h 232) used to tint symbols in generated passwords. Neutral lightness steps are 98.5, 96.5, 91.5, 82, 64, 54, 42, 30, 16, 9, 6. Flutter mirrors the same triplets with `HSLColor.fromAHSL`, and its widget tests run Flutter's text contrast and tap target guidelines.
 
 | Token | Light | Dark |
 |---|---|---|
-| `--color-bg` | neutral l 98% | neutral l 7% |
-| `--color-surface` | white | neutral l 11% |
-| `--color-text` | neutral l 10% | neutral l 95% |
-| `--color-text-muted` | neutral l 40% | neutral l 65% |
-| `--color-primary` (button fill, link text) | brand l 26% (brand-700) | brand l 50% (brand-400) |
-| `--color-on-primary` | white | neutral l 7% |
+| `--color-bg` | neutral l 98.5% | neutral l 6% |
+| `--color-surface` | white | neutral l 9% |
+| `--color-surface-2` | neutral l 96.5% | neutral l 12.5% |
+| `--color-text` | neutral l 9% | neutral l 95% |
+| `--color-text-muted` | neutral l 42% | neutral l 64% |
+| `--color-primary` / `--color-on-primary` | neutral l 11% / white | neutral l 95% / neutral l 8% |
+| `--color-link` | brand l 28% | brand l 58% |
+| `--color-accent-soft-text` (digits, badges) | brand l 26% | brand l 60% |
+| `--color-symbol` | h 232 s 62% l 50% | h 232 s 90% l 76% |
 | `--color-danger` | danger l 45% | danger l 65% |
 | `--color-warning-text` | warning l 30% | warning l 60% |
-| `--color-border` (input boundary) | neutral l 50% | neutral l 40% |
-| `--color-border-subtle` (decorative dividers, no contrast requirement) | neutral l 90% | neutral l 18% |
-| `--color-focus` | brand l 33% (brand-600) | brand l 65% (brand-300) |
+| `--color-border` (input boundary) | neutral l 54% | neutral l 40% |
+| `--color-border-subtle` (decorative) | neutral l 91.5% | neutral l 16% |
+| `--color-focus` | brand l 33% | brand l 55% |
 
-### 10.2 Measured contrast (WCAG 2.x relative luminance, computed 2026-11-08)
+### 10.2 Measured contrast (WCAG 2.x relative luminance, re measured after the redesign)
 
 | Pair | Ratio | Requirement |
 |---|---|---|
-| White text on brand-500 l 39% (the raw brand colour) | **2.59** | fails 4.5, not used for text |
-| Light. `on-primary` white on primary l 26% | 5.35 | 4.5 text |
-| Light. Primary link l 26% on bg l 98% | 5.13 | 4.5 text |
-| Light. Text l 10% on bg l 98% | 16.58 | 4.5 |
-| Light. Muted l 40% on bg l 98% | 5.15 | 4.5 |
-| Light. Input border l 50% on surface white | 3.68 | 3.0 UI |
-| Light. Focus ring l 33% on white | 3.55 | 3.0 UI |
-| Light. White on danger l 45% | 5.81 | 4.5 |
-| Light. Danger l 45% text on bg l 98% | 5.57 | 4.5 |
-| Light. Warning l 30% text on bg l 98% | 5.18 | 4.5 |
-| Dark. `on-primary` l 7% on primary l 50% | 11.89 | 4.5 |
-| Dark. Primary l 50% on surface l 11% | 10.72 | 3.0 UI |
-| Dark. Link brand-300 l 65% on bg l 7% | 13.08 | 4.5 |
-| Dark. Text l 95% on bg l 7% | 16.76 | 4.5 |
-| Dark. Muted l 65% on surface l 11% | 7.20 | 4.5 |
-| Dark. Input border l 40% on surface l 11% | 3.13 | 3.0 UI |
-| Dark. Danger l 65% on bg l 7% | 5.71 | 4.5 |
-| Dark. Warning l 60% on bg l 7% | 10.10 | 4.5 |
+| White text on brand-500 l 39% (the raw brand colour) | 2.59 | fails 4.5, never used for text |
+| Light. Text l 9% on bg l 98.5% | 17.25 | 4.5 |
+| Light. Muted l 42% on bg | 4.89 | 4.5 |
+| Light. Muted l 42% on surface-2 l 96.5% | 4.69 | 4.5 |
+| Light. White on primary ink l 11% | 16.86 | 4.5 |
+| Light. Link brand l 28% on white / on bg | 4.74 / 4.59 | 4.5 |
+| Light. Accent text brand l 26% on brand l 95% | 5.04 | 4.5 |
+| Light. Symbol on surface-2 | 6.75 | 4.5 |
+| Light. Input border l 54% on white | 3.30 | 3.0 UI |
+| Light. Focus ring brand l 33% on white | 3.55 | 3.0 UI |
+| Light. Danger l 45% on white | 5.81 | 4.5 |
+| Light. Warning l 30% on bg | 5.23 | 4.5 |
+| Dark. Text l 95% on bg l 6% | 17.12 | 4.5 |
+| Dark. Muted l 64% on surface l 9% / surface-2 | 7.33 / 6.63 | 4.5 |
+| Dark. Primary text l 8% on l 95% | 16.40 | 4.5 |
+| Dark. Link brand l 58% on surface | 11.90 | 4.5 |
+| Dark. Accent text brand l 60% on soft fill | 9.36 | 4.5 |
+| Dark. Symbol on surface-2 | 6.17 | 4.5 |
+| Dark. Input border l 40% on surface | 3.26 | 3.0 UI |
+| Dark. Focus ring brand l 55% on bg | 12.50 | 3.0 UI |
+| Dark. Danger l 65% on surface | 5.46 | 4.5 |
+| Dark. Warning l 60% on bg | 10.33 | 4.5 |
 
-The brand green is used at full saturation as an accent (logo, active states with a text label next to them, TOTP ring), never as the only carrier of text contrast.
+### 10.2.1 Layout and motion
+
+- Desktop shows a sidebar and a two pane vault, list on the left and the selected credential on the right. Below 960 px the detail replaces the list and gains a back button. The selection lives in the `item` query parameter (a random id, never content), so the browser back button works on phones.
+- Keyboard. `/` or Ctrl/⌘K focuses search, arrow keys move through the list and open the focused item, Home and End jump to the ends.
+- Controls are 36 px high on fine pointers and 44 px on touch screens. Inputs use 16 px text on touch screens so iOS does not zoom.
+- Motion is short and purposeful. Buttons scale to 0.97 on press, dialogs fade and settle from 0.97 in 200 ms and leave in 140 ms, toasts rise in with an interruptible transition, the copy button morphs into a check with a slight blur, and the TOTP ring drains linearly and snaps back without rewinding. Hover effects apply only to fine pointers. Revealing secrets and switching items are instant, because they happen many times a day. Reduced motion keeps colour and opacity changes and drops movement.
 
 ### 10.3 UX
 

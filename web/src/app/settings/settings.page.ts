@@ -10,63 +10,74 @@ import { SessionService } from '../core/session/session.service';
 import { ThemeService, type ThemeChoice } from '../core/theme/theme.service';
 import { ToastService } from '../core/ui/toast.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
+import { Icon, type IconName } from '../shared/icon';
 
 @Component({
   selector: 'app-settings-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, PasswordInput],
+  imports: [ReactiveFormsModule, PasswordInput, Icon],
   template: `
-    <div class="stack page">
-      <h1>Settings</h1>
+    <div class="page">
+      <header class="page-head">
+        <h1>Settings</h1>
+        <p class="muted">Preferences on this device and security for your account.</p>
+      </header>
 
-      <section class="card stack" aria-labelledby="s-appearance">
-        <h2 id="s-appearance">Appearance</h2>
-        <fieldset class="choices">
-          <legend class="label">Theme</legend>
-          @for (t of themes; track t.value) {
-            <label class="checkbox">
-              <input
-                type="radio"
-                name="theme"
-                [value]="t.value"
-                [checked]="theme.choice() === t.value"
-                (change)="theme.set(t.value)"
-              />
-              {{ t.label }}
-            </label>
-          }
-        </fieldset>
-      </section>
-
-      <section class="card stack" aria-labelledby="s-lock">
-        <h2 id="s-lock">Auto lock</h2>
-        <div class="field">
-          <label for="autolock">Lock the vault after inactivity</label>
-          <select
-            id="autolock"
-            class="input narrow"
-            (change)="autoLock.setMinutes(+$any($event.target).value)"
-            aria-describedby="autolock-hint"
-          >
-            @for (m of lockChoices; track m) {
-              <option [value]="m" [selected]="m === autoLock.minutes()">
-                {{ m }} minute{{ m === 1 ? '' : 's' }}
-              </option>
-            }
-          </select>
-          <span id="autolock-hint" class="hint"
-            >The vault also locks one minute after this tab is hidden.</span
-          >
+      <section class="group" aria-labelledby="s-device">
+        <h2 id="s-device">This device</h2>
+        <div class="card">
+          <div class="setting">
+            <div class="text">
+              <span class="name" id="theme-label">Theme</span>
+              <span class="desc">Stored on this device only.</span>
+            </div>
+            <div class="seg" role="radiogroup" aria-labelledby="theme-label">
+              @for (t of themes; track t.value) {
+                <label class="seg-item" [class.on]="theme.choice() === t.value">
+                  <input
+                    type="radio"
+                    name="theme"
+                    [value]="t.value"
+                    [checked]="theme.choice() === t.value"
+                    (change)="theme.set(t.value)"
+                  />
+                  <app-icon [name]="t.icon" [size]="15" />
+                  <span>{{ t.label }}</span>
+                </label>
+              }
+            </div>
+          </div>
+          <div class="setting">
+            <div class="text">
+              <label class="name" for="autolock">Auto lock</label>
+              <span class="desc" id="autolock-hint"
+                >Lock after inactivity. The vault also locks a minute after this tab is
+                hidden.</span
+              >
+            </div>
+            <select
+              id="autolock"
+              class="input narrow"
+              (change)="autoLock.setMinutes(+$any($event.target).value)"
+              aria-describedby="autolock-hint"
+            >
+              @for (m of lockChoices; track m) {
+                <option [value]="m" [selected]="m === autoLock.minutes()">
+                  {{ m }} minute{{ m === 1 ? '' : 's' }}
+                </option>
+              }
+            </select>
+          </div>
         </div>
       </section>
 
-      <section class="card stack" aria-labelledby="s-password">
+      <section class="group" aria-labelledby="s-password">
         <h2 id="s-password">Change master password</h2>
-        <p class="muted">
-          Your credentials stay encrypted with the same vault key, only the key that protects it
-          changes. Other devices are signed out.
-        </p>
-        <form class="stack" [formGroup]="pwForm" (ngSubmit)="changePassword()" novalidate>
+        <form class="card form" [formGroup]="pwForm" (ngSubmit)="changePassword()" novalidate>
+          <p class="desc">
+            Your entries stay encrypted with the same vault key, only the key protecting it changes.
+            Other sessions are signed out.
+          </p>
           <input
             type="text"
             class="visually-hidden"
@@ -84,36 +95,40 @@ import { VaultSessionStore } from '../core/vault/vault-session.store';
               autocomplete="current-password"
             />
           </div>
-          <div class="field">
-            <label for="cp-next">New master password</label>
-            <app-password-input
-              [control]="pwForm.controls.next"
-              inputId="cp-next"
-              autocomplete="new-password"
-              [invalid]="pwErrors() && pwForm.controls.next.invalid"
-              describedBy="cp-next-err"
-            />
-            @if (pwErrors() && pwForm.controls.next.invalid) {
-              <span id="cp-next-err" class="error-text">Use at least {{ min }} characters.</span>
-            }
-          </div>
-          <div class="field">
-            <label for="cp-confirm">Confirm new master password</label>
-            <app-password-input
-              [control]="pwForm.controls.confirm"
-              inputId="cp-confirm"
-              autocomplete="new-password"
-              [invalid]="pwMismatch()"
-              describedBy="cp-confirm-err"
-            />
-            @if (pwMismatch()) {
-              <span id="cp-confirm-err" class="error-text">The passwords do not match.</span>
-            }
+          <div class="two">
+            <div class="field">
+              <label for="cp-next">New master password</label>
+              <app-password-input
+                [control]="pwForm.controls.next"
+                inputId="cp-next"
+                autocomplete="new-password"
+                [invalid]="pwErrors() && pwForm.controls.next.invalid"
+                describedBy="cp-next-err"
+              />
+              @if (pwErrors() && pwForm.controls.next.invalid) {
+                <span id="cp-next-err" class="error-text">Use at least {{ min }} characters.</span>
+              }
+            </div>
+            <div class="field">
+              <label for="cp-confirm">Confirm new master password</label>
+              <app-password-input
+                [control]="pwForm.controls.confirm"
+                inputId="cp-confirm"
+                autocomplete="new-password"
+                [invalid]="pwMismatch()"
+                describedBy="cp-confirm-err"
+              />
+              @if (pwMismatch()) {
+                <span id="cp-confirm-err" class="error-text">The passwords do not match.</span>
+              }
+            </div>
           </div>
           @if (pwError()) {
-            <p class="alert alert-error" role="alert">{{ pwError() }}</p>
+            <p class="alert alert-error" role="alert">
+              <app-icon name="alert-circle" [size]="16" /><span>{{ pwError() }}</span>
+            </p>
           }
-          <div>
+          <div class="form-foot">
             <button class="btn btn-primary" type="submit" [disabled]="busy()">
               Change master password
             </button>
@@ -121,62 +136,79 @@ import { VaultSessionStore } from '../core/vault/vault-session.store';
         </form>
       </section>
 
-      <section class="card stack" aria-labelledby="s-sessions">
+      <section class="group" aria-labelledby="s-sessions">
         <h2 id="s-sessions">Sessions</h2>
-        <p class="muted">Sign out on every device, including this one.</p>
-        <form class="stack" [formGroup]="allForm" (ngSubmit)="logoutAll()" novalidate>
-          <div class="field">
-            <label for="la-password">Master password</label>
-            <app-password-input
-              [control]="allForm.controls.password"
-              inputId="la-password"
-              autocomplete="current-password"
-            />
-          </div>
-          @if (allError()) {
-            <p class="alert alert-error" role="alert">{{ allError() }}</p>
-          }
-          <div>
+        <form class="card form" [formGroup]="allForm" (ngSubmit)="logoutAll()" novalidate>
+          <p class="desc">
+            Sign out on every device, including this one. Confirm with your master password.
+          </p>
+          <div class="inline">
+            <div class="field grow">
+              <label for="la-password">Master password</label>
+              <app-password-input
+                [control]="allForm.controls.password"
+                inputId="la-password"
+                autocomplete="current-password"
+              />
+            </div>
             <button class="btn btn-secondary" type="submit" [disabled]="busy()">
-              Sign out of all sessions
+              <app-icon name="devices" [size]="16" /> Sign out of all sessions
             </button>
           </div>
+          @if (allError()) {
+            <p class="alert alert-error" role="alert">
+              <app-icon name="alert-circle" [size]="16" /><span>{{ allError() }}</span>
+            </p>
+          }
         </form>
       </section>
 
-      <section class="card stack danger" aria-labelledby="s-delete">
-        <h2 id="s-delete">Delete account</h2>
-        <p class="muted">
-          This permanently deletes your account and every credential in it. It cannot be undone.
-        </p>
-        <form class="stack" [formGroup]="delForm" (ngSubmit)="deleteAccount()" novalidate>
-          <div class="field">
-            <label for="del-username"
-              >Type your username <strong>{{ vault.username() }}</strong> to confirm</label
-            >
-            <input
-              id="del-username"
-              class="input"
-              formControlName="username"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-            />
+      <section class="group" aria-labelledby="s-delete">
+        <h2 id="s-delete" class="danger-title">Danger zone</h2>
+        <form
+          class="card form danger"
+          [formGroup]="delForm"
+          (ngSubmit)="deleteAccount()"
+          novalidate
+        >
+          <div class="text">
+            <span class="name">Delete account</span>
+            <p class="desc">
+              Permanently deletes your account and every credential in it. This cannot be undone.
+            </p>
           </div>
-          <div class="field">
-            <label for="del-password">Master password</label>
-            <app-password-input
-              [control]="delForm.controls.password"
-              inputId="del-password"
-              autocomplete="current-password"
-            />
+          <div class="two">
+            <div class="field">
+              <label for="del-username"
+                >Type your username <strong class="mono">{{ vault.username() }}</strong> to
+                confirm</label
+              >
+              <input
+                id="del-username"
+                class="input"
+                formControlName="username"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              />
+            </div>
+            <div class="field">
+              <label for="del-password">Master password</label>
+              <app-password-input
+                [control]="delForm.controls.password"
+                inputId="del-password"
+                autocomplete="current-password"
+              />
+            </div>
           </div>
           @if (delError()) {
-            <p class="alert alert-error" role="alert">{{ delError() }}</p>
+            <p class="alert alert-error" role="alert">
+              <app-icon name="alert-circle" [size]="16" /><span>{{ delError() }}</span>
+            </p>
           }
-          <div>
+          <div class="form-foot">
             <button class="btn btn-danger" type="submit" [disabled]="busy() || !canDelete()">
-              Delete my account
+              <app-icon name="trash" [size]="16" /> Delete my account
             </button>
           </div>
         </form>
@@ -185,21 +217,144 @@ import { VaultSessionStore } from '../core/vault/vault-session.store';
   `,
   styles: `
     .page {
-      max-width: 640px;
-    }
-    .choices {
-      border: 0;
-      padding: 0;
-      margin: 0;
       display: flex;
-      gap: var(--space-4);
-      flex-wrap: wrap;
+      flex-direction: column;
+      gap: 28px;
+      max-width: 760px;
+      padding: 28px 32px 64px;
+    }
+    .page-head {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .group > h2 {
+      padding-left: 2px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text-muted);
+      letter-spacing: 0;
+    }
+    .danger-title {
+      color: var(--color-danger) !important;
+    }
+    .setting {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 16px 18px;
+    }
+    .setting + .setting {
+      border-top: 1px solid var(--color-border-subtle);
+    }
+    .text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .name {
+      font-weight: 500;
+    }
+    .desc {
+      font-size: 13px;
+      color: var(--color-text-muted);
     }
     .narrow {
-      max-width: 240px;
+      width: 160px;
+      flex-shrink: 0;
+    }
+    .seg {
+      display: inline-flex;
+      flex-shrink: 0;
+      padding: 3px;
+      gap: 2px;
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-3);
+    }
+    .seg-item {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      height: calc(var(--control-h) - 6px);
+      padding: 0 12px;
+      border-radius: 6px;
+      color: var(--color-text-muted);
+      font-weight: 500;
+      cursor: pointer;
+      transition:
+        background-color 150ms ease,
+        color 150ms ease;
+    }
+    .seg-item.on {
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: var(--shadow-sm);
+    }
+    :host-context([data-theme='dark']) .seg-item.on {
+      background: var(--neutral-700);
+    }
+    .seg-item input {
+      position: absolute;
+      inset: 0;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .seg-item:has(input:focus-visible) {
+      outline: 2px solid var(--color-focus);
+      outline-offset: 1px;
+    }
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 18px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .inline {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+    }
+    .grow {
+      flex: 1;
+    }
+    .form-foot {
+      display: flex;
+      justify-content: flex-end;
     }
     .danger {
-      border-color: var(--color-danger);
+      border-color: hsl(var(--danger-h) var(--danger-s) 50% / 0.35);
+    }
+    @media (max-width: 860px) {
+      .page {
+        padding: 16px 16px 48px;
+      }
+    }
+    @media (max-width: 600px) {
+      .two {
+        grid-template-columns: 1fr;
+      }
+      .setting,
+      .inline {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .narrow {
+        width: 100%;
+      }
     }
   `,
 })
@@ -213,10 +368,10 @@ export class SettingsPage {
 
   protected readonly min = MIN_MASTER_PASSWORD;
   protected readonly lockChoices = AUTO_LOCK_CHOICES;
-  protected readonly themes: { value: ThemeChoice; label: string }[] = [
-    { value: 'system', label: 'Match system' },
-    { value: 'light', label: 'Light' },
-    { value: 'dark', label: 'Dark' },
+  protected readonly themes: { value: ThemeChoice; label: string; icon: IconName }[] = [
+    { value: 'system', label: 'System', icon: 'device-desktop' },
+    { value: 'light', label: 'Light', icon: 'sun' },
+    { value: 'dark', label: 'Dark', icon: 'moon' },
   ];
 
   protected readonly busy = signal(false);

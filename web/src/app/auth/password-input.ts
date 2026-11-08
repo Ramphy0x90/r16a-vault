@@ -11,7 +11,8 @@ import { Icon } from '../shared/icon';
   template: `
     <div class="input-group">
       <input
-        class="input mono-when-shown"
+        class="input"
+        [class.mono]="shown()"
         [id]="inputId()"
         [type]="shown() ? 'text' : 'password'"
         [formControl]="control()"
@@ -28,7 +29,7 @@ import { Icon } from '../shared/icon';
         [attr.aria-label]="shown() ? 'Hide password' : 'Show password'"
         (click)="shown.set(!shown())"
       >
-        <app-icon [name]="shown() ? 'eye-off' : 'eye'" />
+        <app-icon [name]="shown() ? 'eye-off' : 'eye'" [size]="16" />
       </button>
     </div>
   `,

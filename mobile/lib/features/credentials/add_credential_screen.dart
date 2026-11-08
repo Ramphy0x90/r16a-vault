@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/api/api_error.dart';
 import '../../core/totp/totp.dart';
@@ -9,6 +10,7 @@ import '../generator/generator_controller.dart';
 import '../generator/generator_panel.dart';
 import 'credentials_controller.dart';
 import 'url.dart';
+import '../../core/ui/tabler_icon.dart';
 
 class AddCredentialScreen extends ConsumerStatefulWidget {
   const AddCredentialScreen({super.key, this.initialPassword});
@@ -123,7 +125,7 @@ class _AddCredentialScreenState extends ConsumerState<AddCredentialScreen> {
                   IconButton(
                     tooltip: 'Generate a password',
                     isSelected: _generating,
-                    icon: const Icon(Icons.casino_outlined),
+                    icon: const TIcon(tabler.Wand()),
                     onPressed: () => setState(() => _generating = !_generating),
                   ),
                 ],

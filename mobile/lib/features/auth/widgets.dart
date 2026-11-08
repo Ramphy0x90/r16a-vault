@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/theme/theme.dart';
+import '../../core/ui/tabler_icon.dart';
 
 /// Presentational frame shared by sign in, register and unlock.
 class AuthScaffold extends StatelessWidget {
@@ -33,7 +35,7 @@ class AuthScaffold extends StatelessWidget {
                           color: theme.colorScheme.primary,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(Icons.shield_outlined, color: theme.colorScheme.onPrimary, size: 20),
+                        child: TIcon(const tabler.ShieldLock(), color: theme.colorScheme.onPrimary, size: 20),
                       ),
                       const SizedBox(width: 8),
                       Text('r16a vault', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
@@ -105,7 +107,7 @@ class _PasswordFieldState extends State<PasswordField> {
       labelText: widget.label,
       suffixIcon: IconButton(
         tooltip: _shown ? 'Hide password' : 'Show password',
-        icon: Icon(_shown ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+        icon: TIcon(_shown ? const tabler.EyeOff() : const tabler.Eye()),
         onPressed: () => setState(() => _shown = !_shown),
       ),
     ),

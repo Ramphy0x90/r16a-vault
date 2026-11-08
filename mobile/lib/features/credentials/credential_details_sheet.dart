@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/api/api_error.dart';
 import '../../core/clipboard/clipboard_service.dart';
@@ -9,6 +10,7 @@ import '../../core/crypto/vault_crypto.dart';
 import '../../core/totp/totp.dart';
 import '../../core/vault/vault_controller.dart';
 import 'credentials_controller.dart';
+import '../../core/ui/tabler_icon.dart';
 
 const revealDuration = Duration(seconds: 30);
 const totpVisibleDuration = Duration(seconds: 90);
@@ -160,7 +162,7 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
                 if (meta.username.isNotEmpty)
                   IconButton(
                     tooltip: 'Copy username',
-                    icon: const Icon(Icons.copy_outlined),
+                    icon: const TIcon(tabler.Copy()),
                     onPressed: () async {
                       await ref.read(clipboardServiceProvider).copy(meta.username, sensitive: false);
                       _toast('Username copied.');
@@ -177,13 +179,13 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
                 IconButton(
                   tooltip: _password != null ? 'Hide password' : 'Reveal password',
                   isSelected: _password != null,
-                  icon: const Icon(Icons.visibility_outlined),
-                  selectedIcon: const Icon(Icons.visibility_off_outlined),
+                  icon: const TIcon(tabler.Eye()),
+                  selectedIcon: const TIcon(tabler.EyeOff()),
                   onPressed: _busy ? null : _toggleReveal,
                 ),
                 IconButton(
                   tooltip: 'Copy password',
-                  icon: const Icon(Icons.copy_outlined),
+                  icon: const TIcon(tabler.Copy()),
                   onPressed: _busy ? null : _copyPassword,
                 ),
               ],
@@ -194,7 +196,7 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
                       alignment: Alignment.centerLeft,
                       child: OutlinedButton.icon(
                         onPressed: _busy ? null : _showTotp,
-                        icon: const Icon(Icons.schedule),
+                        icon: const TIcon(tabler.ClockHour4()),
                         label: const Text('Show one time code'),
                       ),
                     )
@@ -221,7 +223,7 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
                 onPressed: _delete,
-                icon: const Icon(Icons.delete_outline),
+                icon: const TIcon(tabler.Trash()),
                 label: const Text('Delete'),
               ),
             ),
@@ -315,8 +317,8 @@ class TotpView extends StatelessWidget {
             ),
           ),
         ),
-        IconButton(tooltip: 'Copy one time code', icon: const Icon(Icons.copy_outlined), onPressed: onCopy),
-        IconButton(tooltip: 'Hide one time code', icon: const Icon(Icons.visibility_off_outlined), onPressed: onHide),
+        IconButton(tooltip: 'Copy one time code', icon: const TIcon(tabler.Copy()), onPressed: onCopy),
+        IconButton(tooltip: 'Hide one time code', icon: const TIcon(tabler.EyeOff()), onPressed: onHide),
       ],
     );
   }

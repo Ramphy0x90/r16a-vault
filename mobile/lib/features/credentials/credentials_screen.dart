@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/api/api_error.dart';
 import '../../core/theme/theme.dart';
 import 'credential_details_sheet.dart';
 import 'credential_tile.dart';
 import 'credentials_controller.dart';
+import '../../core/ui/tabler_icon.dart';
 
 class CredentialsScreen extends ConsumerStatefulWidget {
   const CredentialsScreen({super.key});
@@ -47,7 +49,7 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
       appBar: AppBar(title: const Text('Vault')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/vault/add'),
-        icon: const Icon(Icons.add),
+        icon: const TIcon(tabler.Plus()),
         label: const Text('Add'),
       ),
       body: switch (state) {
@@ -70,7 +72,7 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.key_outlined, size: 40, color: muted),
+                TIcon(const tabler.Key(), size: 40, color: muted),
                 const SizedBox(height: 12),
                 Text('Your vault is empty', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 4),
@@ -82,7 +84,7 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
                 const SizedBox(height: 16),
                 FilledButton.icon(
                   onPressed: () => context.go('/vault/add'),
-                  icon: const Icon(Icons.add),
+                  icon: const TIcon(tabler.Plus()),
                   label: const Text('Add credential'),
                 ),
               ],
@@ -97,7 +99,10 @@ class _CredentialsScreenState extends ConsumerState<CredentialsScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: TextField(
-                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search), labelText: 'Search credentials'),
+                  decoration: const InputDecoration(
+                    prefixIcon: TIcon(tabler.Search()),
+                    labelText: 'Search credentials',
+                  ),
                   onChanged: (v) => setState(() => _query = v),
                 ),
               ),

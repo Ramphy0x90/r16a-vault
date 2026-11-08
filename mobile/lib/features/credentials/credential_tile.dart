@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/theme/theme.dart';
 import 'credentials_controller.dart';
 import 'url.dart';
+import '../../core/ui/tabler_icon.dart';
 
 const _hues = <double>[160, 200, 250, 290, 330, 20, 45, 100];
 
@@ -24,7 +26,7 @@ class CredentialTile extends StatelessWidget {
         minTileHeight: 64,
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.error.withValues(alpha: 0.15),
-          child: Icon(Icons.priority_high, color: Theme.of(context).colorScheme.error),
+          child: TIcon(const tabler.AlertTriangle(), color: Theme.of(context).colorScheme.error),
         ),
         title: const Text('Unreadable entry'),
         subtitle: const Text('This entry could not be decrypted and may have been tampered with.'),
@@ -62,7 +64,7 @@ class CredentialTile extends StatelessWidget {
                 side: BorderSide.none,
               ),
             )
-          : const Icon(Icons.chevron_right),
+          : const TIcon(tabler.ChevronRight()),
     );
   }
 }

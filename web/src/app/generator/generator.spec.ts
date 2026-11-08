@@ -95,7 +95,10 @@ describe('wordlist and passphrases', () => {
   const words = text.trim().split('\n');
 
   it('serves an exact copy of the shared wordlist', () => {
-    const served = readFileSync(resolve(process.cwd(), 'public/assets/eff_large_wordlist.txt'), 'utf8');
+    const served = readFileSync(
+      resolve(process.cwd(), 'public/assets/eff_large_wordlist.txt'),
+      'utf8',
+    );
     expect(served).toBe(text);
   });
 

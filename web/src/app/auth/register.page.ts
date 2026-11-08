@@ -12,6 +12,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { messageFor } from '../core/api/api-error';
 import { ApiService } from '../core/api/api.service';
 import { SessionService } from '../core/session/session.service';
+import { Icon } from '../shared/icon';
 import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './password-input';
 
@@ -27,7 +28,7 @@ function matchPasswords(group: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-register-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, AuthLayout, PasswordInput],
+  imports: [ReactiveFormsModule, RouterLink, AuthLayout, PasswordInput, Icon],
   template: `
     <app-auth-layout [heading]="oidc() ? 'Finish signing in' : 'Create your vault'">
       @if (oidc()) {
@@ -38,9 +39,12 @@ function matchPasswords(group: AbstractControl): ValidationErrors | null {
         </p>
       }
       <div class="alert alert-warning" role="note">
-        <strong>Your master password cannot be recovered.</strong>
-        It never leaves this device and the server cannot reset it. If you forget it, everything in
-        your vault is lost for good. Write it down somewhere safe.
+        <app-icon name="alert-triangle" [size]="16" />
+        <span>
+          <strong>Your master password cannot be recovered.</strong>
+          It never leaves this device and the server cannot reset it. If you forget it, everything
+          in your vault is lost for good.
+        </span>
       </div>
       <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <div class="field">
@@ -103,17 +107,19 @@ function matchPasswords(group: AbstractControl): ValidationErrors | null {
           <span id="reg-understood-err" class="error-text">Please confirm you understand.</span>
         }
         @if (error()) {
-          <p class="alert alert-error" role="alert">{{ error() }}</p>
+          <p class="alert alert-error" role="alert">
+            <app-icon name="alert-circle" [size]="16" /><span>{{ error() }}</span>
+          </p>
         }
         <button class="btn btn-primary btn-block" type="submit" [disabled]="busy()">
           @if (busy()) {
-            <span class="spinner" aria-hidden="true"></span> Creating vault…
+            <span class="spinner" aria-hidden="true"></span> Creating your vault…
           } @else {
             Create account
           }
         </button>
       </form>
-      <p class="muted">Already have an account? <a routerLink="/login">Sign in</a></p>
+      <p footer>Already have an account? <a routerLink="/login">Sign in</a></p>
     </app-auth-layout>
   `,
 })

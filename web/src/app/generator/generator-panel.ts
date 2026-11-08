@@ -20,109 +20,138 @@ const CLASS_LABELS: Record<CharClass, string> = {
   symbols: 'Symbols',
 };
 
-/** Presentational generator controls. All state lives in the GeneratorStore of the parent. */
+const STRENGTH_LEVEL: Record<Strength, number> = { weak: 1, fair: 2, strong: 3, excellent: 4 };
+
+/**
+ * Presentational generator controls. State lives in the GeneratorStore of the parent.
+ * Digits and symbols are tinted in the output so a password can be read back without
+ * confusing similar glyphs.
+ */
 @Component({
   selector: 'app-generator-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [Icon],
+  host: { '[class.compact]': 'compact()' },
   template: `
-    <div class="stack">
-      <div class="output">
-        <output
-          class="mono value"
-          [attr.aria-label]="'Generated ' + (mode() === 'random' ? 'password' : 'passphrase')"
-          >{{ value() || '…' }}</output
-        >
+    <div class="output">
+      <output
+        class="value mono"
+        [attr.aria-label]="'Generated ' + (mode() === 'random' ? 'password' : 'passphrase')"
+      >
+        @for (c of chars(); track $index) {
+          <span [class]="c.kind">{{ c.ch }}</span>
+        } @empty {
+          …
+        }
+      </output>
+      <div class="output-actions">
         <button
           type="button"
           class="icon-btn"
           (click)="regenerate.emit()"
           aria-label="Generate another"
         >
-          <app-icon name="refresh" />
+          <app-icon name="refresh" [size]="16" />
         </button>
         <ng-content select="[actions]" />
       </div>
-      <div class="meter" [attr.data-strength]="strength()">
-        <span class="bar"><span [style.width.%]="meterWidth()"></span></span>
-        <span class="label">{{ strengthLabel() }} · about {{ bits() }} bits</span>
-      </div>
-      @if (error()) {
-        <p class="alert alert-error" role="alert">{{ error() }}</p>
-      }
+    </div>
 
-      <div class="segmented" role="group" aria-label="Generator type">
-        <button
-          type="button"
-          [attr.aria-pressed]="mode() === 'random'"
-          (click)="modeChange.emit('random')"
-        >
-          Password
-        </button>
-        <button
-          type="button"
-          [attr.aria-pressed]="mode() === 'passphrase'"
-          (click)="modeChange.emit('passphrase')"
-        >
-          Passphrase
-        </button>
+    <div class="meter" [attr.data-strength]="strength()">
+      <div class="bars" aria-hidden="true">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <span [class.on]="i <= level()"></span>
+        }
       </div>
+      <span class="meter-label"
+        ><strong>{{ strengthLabel() }}</strong
+        ><span class="muted tabular"> · {{ bits() }} bits</span></span
+      >
+    </div>
+    @if (error()) {
+      <p class="alert alert-error" role="alert">
+        <app-icon name="alert-circle" [size]="16" /><span>{{ error() }}</span>
+      </p>
+    }
 
-      @if (mode() === 'random') {
-        <div class="field">
-          <label [for]="id + '-len'"
-            >Length <span class="muted">{{ random().length }}</span></label
-          >
-          <input
-            type="range"
-            [id]="id + '-len'"
-            [min]="minLength"
-            [max]="maxLength"
-            [value]="random().length"
-            (input)="randomChange.emit({ length: +$any($event.target).value })"
-          />
-        </div>
-        <fieldset class="options">
-          <legend class="label">Characters</legend>
-          @for (c of classes; track c) {
-            <label class="checkbox">
-              <input
-                type="checkbox"
-                [checked]="random().classes.includes(c)"
-                [disabled]="random().classes.length === 1 && random().classes.includes(c)"
-                (change)="toggleClass(c)"
-              />
-              {{ labels[c] }}
-            </label>
-          }
-          <label class="checkbox">
+    <div class="segmented" role="group" aria-label="Generator type" [attr.data-mode]="mode()">
+      <span class="thumb" aria-hidden="true"></span>
+      <button
+        type="button"
+        [attr.aria-pressed]="mode() === 'random'"
+        (click)="modeChange.emit('random')"
+      >
+        <app-icon name="asterisk" [size]="15" /> Password
+      </button>
+      <button
+        type="button"
+        [attr.aria-pressed]="mode() === 'passphrase'"
+        (click)="modeChange.emit('passphrase')"
+      >
+        <app-icon name="dice-5" [size]="15" /> Passphrase
+      </button>
+    </div>
+
+    @if (mode() === 'random') {
+      <div class="slider">
+        <label [for]="id + '-len'">Length</label>
+        <input
+          type="range"
+          [id]="id + '-len'"
+          [min]="minLength"
+          [max]="maxLength"
+          [value]="random().length"
+          [style.--fill]="((random().length - minLength) / (maxLength - minLength)) * 100 + '%'"
+          (input)="randomChange.emit({ length: +$any($event.target).value })"
+        />
+        <span class="readout tabular">{{ random().length }}</span>
+      </div>
+      <fieldset class="options">
+        <legend class="visually-hidden">Characters</legend>
+        @for (c of classes; track c) {
+          <label class="opt">
+            <span>{{ labels[c] }}</span>
             <input
               type="checkbox"
-              [checked]="random().excludeAmbiguous"
-              (change)="randomChange.emit({ excludeAmbiguous: !random().excludeAmbiguous })"
+              role="switch"
+              class="switch"
+              [checked]="random().classes.includes(c)"
+              [disabled]="random().classes.length === 1 && random().classes.includes(c)"
+              (change)="toggleClass(c)"
             />
-            Avoid look alike characters such as l, 1, O and 0
           </label>
-        </fieldset>
-      } @else {
-        <div class="field">
-          <label [for]="id + '-words'"
-            >Words <span class="muted">{{ passphrase().words }}</span></label
-          >
+        }
+        <label class="opt wide">
+          <span>Avoid look alike characters such as l, 1, O and 0</span>
           <input
-            type="range"
-            [id]="id + '-words'"
-            [min]="minWords"
-            [max]="maxWords"
-            [value]="passphrase().words"
-            (input)="passphraseChange.emit({ words: +$any($event.target).value })"
+            type="checkbox"
+            role="switch"
+            class="switch"
+            [checked]="random().excludeAmbiguous"
+            (change)="randomChange.emit({ excludeAmbiguous: !random().excludeAmbiguous })"
           />
-        </div>
-        <div class="field">
-          <label [for]="id + '-sep'">Separator</label>
+        </label>
+      </fieldset>
+    } @else {
+      <div class="slider">
+        <label [for]="id + '-words'">Words</label>
+        <input
+          type="range"
+          [id]="id + '-words'"
+          [min]="minWords"
+          [max]="maxWords"
+          [value]="passphrase().words"
+          [style.--fill]="((passphrase().words - minWords) / (maxWords - minWords)) * 100 + '%'"
+          (input)="passphraseChange.emit({ words: +$any($event.target).value })"
+        />
+        <span class="readout tabular">{{ passphrase().words }}</span>
+      </div>
+      <fieldset class="options">
+        <legend class="visually-hidden">Passphrase options</legend>
+        <label class="opt">
+          <span>Separator</span>
           <select
-            class="input"
-            [id]="id + '-sep'"
+            class="input sep"
             [value]="passphrase().separator"
             (change)="passphraseChange.emit({ separator: $any($event.target).value })"
           >
@@ -132,105 +161,200 @@ const CLASS_LABELS: Record<CharClass, string> = {
             <option value="_">Underscore</option>
             <option value="">None</option>
           </select>
-        </div>
-        <fieldset class="options">
-          <legend class="visually-hidden">Passphrase options</legend>
-          <label class="checkbox">
-            <input
-              type="checkbox"
-              [checked]="passphrase().capitalise"
-              (change)="passphraseChange.emit({ capitalise: !passphrase().capitalise })"
-            />
-            Capitalise words
-          </label>
-          <label class="checkbox">
-            <input
-              type="checkbox"
-              [checked]="passphrase().includeNumber"
-              (change)="passphraseChange.emit({ includeNumber: !passphrase().includeNumber })"
-            />
-            Include a number
-          </label>
-        </fieldset>
-      }
-    </div>
+        </label>
+        <label class="opt">
+          <span>Capitalise words</span>
+          <input
+            type="checkbox"
+            role="switch"
+            class="switch"
+            [checked]="passphrase().capitalise"
+            (change)="passphraseChange.emit({ capitalise: !passphrase().capitalise })"
+          />
+        </label>
+        <label class="opt">
+          <span>Include a number</span>
+          <input
+            type="checkbox"
+            role="switch"
+            class="switch"
+            [checked]="passphrase().includeNumber"
+            (change)="passphraseChange.emit({ includeNumber: !passphrase().includeNumber })"
+          />
+        </label>
+      </fieldset>
+    }
   `,
   styles: `
+    :host {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
     .output {
       display: flex;
-      align-items: center;
-      gap: var(--space-1);
-      padding: var(--space-2) var(--space-2) var(--space-2) var(--space-4);
+      align-items: flex-start;
+      gap: 8px;
+      padding: 16px 10px 16px 18px;
       border-radius: var(--radius);
       background: var(--color-surface-2);
       border: 1px solid var(--color-border-subtle);
     }
     .value {
       flex: 1;
-      font-size: 1.05rem;
-      word-break: break-all;
       min-height: 1.5em;
+      font-size: 20px;
+      line-height: 1.45;
+      word-break: break-all;
+    }
+    :host(.compact) .value {
+      font-size: 15px;
+    }
+    :host(.compact) .output {
+      padding: 10px 6px 10px 12px;
+      background: var(--color-surface);
+    }
+    .digit {
+      color: var(--color-accent-soft-text);
+    }
+    .symbol {
+      color: var(--color-symbol);
+    }
+    .output-actions {
+      display: flex;
+      gap: 2px;
+      margin-top: -2px;
     }
     .meter {
       display: flex;
       align-items: center;
-      gap: var(--space-3);
-      font-size: 0.9rem;
+      gap: 12px;
+      font-size: 13px;
     }
-    .bar {
-      flex: 1;
-      height: 6px;
-      border-radius: 3px;
-      background: var(--color-border-subtle);
-      overflow: hidden;
+    .bars {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      width: 132px;
     }
-    .bar span {
-      display: block;
-      height: 100%;
+    .bars span {
+      height: 4px;
+      border-radius: 2px;
+      background: var(--color-surface-3);
+      transition: background-color 200ms ease;
+    }
+    [data-strength='weak'] .bars .on {
       background: var(--color-danger);
-      transition: width 200ms ease;
     }
-    [data-strength='fair'] .bar span {
+    [data-strength='fair'] .bars .on {
       background: var(--color-warning-text);
     }
-    [data-strength='strong'] .bar span,
-    [data-strength='excellent'] .bar span {
+    [data-strength='strong'] .bars .on,
+    [data-strength='excellent'] .bars .on {
       background: var(--color-accent);
     }
+    .meter-label strong {
+      font-weight: 600;
+    }
     .segmented {
-      display: inline-flex;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: min(320px, 100%);
       padding: 3px;
-      gap: 3px;
-      align-self: flex-start;
+      border-radius: var(--radius-sm);
+      background: var(--color-surface-3);
+    }
+    .thumb {
+      position: absolute;
+      top: 3px;
+      bottom: 3px;
+      left: 3px;
+      width: calc(50% - 3px);
+      border-radius: 6px;
+      background: var(--color-surface);
+      box-shadow: var(--shadow-sm);
+      transition: transform 220ms var(--ease-out);
+    }
+    :host-context([data-theme='dark']) .thumb {
+      background: var(--neutral-700);
+    }
+    [data-mode='passphrase'] .thumb {
+      transform: translateX(100%);
     }
     .segmented button {
-      min-height: 38px;
-      padding: 0 var(--space-4);
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      height: calc(var(--control-h) - 6px);
       border: 0;
-      border-radius: calc(var(--radius) - 3px);
       background: transparent;
-      color: var(--color-text);
+      color: var(--color-text-muted);
       font: inherit;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
+      transition: color 150ms ease;
     }
     .segmented button[aria-pressed='true'] {
-      background: var(--color-primary);
-      color: var(--color-on-primary);
+      color: var(--color-text);
+    }
+    .slider {
+      display: grid;
+      grid-template-columns: 72px 1fr 40px;
+      align-items: center;
+      gap: 12px;
+    }
+    .slider label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .readout {
+      justify-self: end;
+      min-width: 36px;
+      padding: 2px 0;
+      border-radius: 6px;
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border-subtle);
+      font-size: 13px;
+      font-weight: 500;
+      text-align: center;
     }
     .options {
-      border: 0;
-      padding: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 24px;
       margin: 0;
-      display: flex;
-      flex-direction: column;
+      padding: 0;
+      border: 0;
     }
-    input[type='range'] {
-      width: 100%;
-      accent-color: var(--color-primary);
-      min-height: var(--touch);
+    .opt {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: var(--control-h);
+      font-size: 13.5px;
+      cursor: pointer;
+    }
+    .opt.wide {
+      grid-column: 1 / -1;
+    }
+    .sep {
+      width: 140px;
+      height: var(--control-h-sm);
+    }
+    :host(.compact) .options {
+      grid-template-columns: 1fr;
+    }
+    @media (max-width: 600px) {
+      .options {
+        grid-template-columns: 1fr;
+      }
+      .value {
+        font-size: 17px;
+      }
     }
   `,
 })
@@ -251,14 +375,21 @@ export class GeneratorPanel {
   readonly random = input.required<RandomOptions>();
   readonly passphrase = input.required<PassphraseOptions>();
   readonly error = input('');
+  readonly compact = input(false);
 
   readonly regenerate = output<void>();
   readonly modeChange = output<GeneratorMode>();
   readonly randomChange = output<Partial<RandomOptions>>();
   readonly passphraseChange = output<Partial<PassphraseOptions>>();
 
+  protected readonly chars = computed(() =>
+    [...this.value()].map((ch) => ({
+      ch,
+      kind: /[0-9]/.test(ch) ? 'digit' : /[A-Za-z]/.test(ch) ? '' : 'symbol',
+    })),
+  );
   protected readonly bits = computed(() => Math.floor(this.entropy()));
-  protected readonly meterWidth = computed(() => Math.min(100, (this.entropy() / 128) * 100));
+  protected readonly level = computed(() => STRENGTH_LEVEL[this.strength()]);
   protected readonly strengthLabel = computed(() => {
     const s = this.strength();
     return s.charAt(0).toUpperCase() + s.slice(1);

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/theme/theme.dart';
 import 'generator.dart';
 import 'generator_controller.dart';
+import '../../core/ui/tabler_icon.dart';
 
 const _classLabels = {
   CharClass.upper: 'Uppercase A to Z',
@@ -45,7 +47,7 @@ class GeneratorPanel extends StatelessWidget {
               ),
               IconButton(
                 tooltip: 'Generate another',
-                icon: const Icon(Icons.refresh),
+                icon: const TIcon(tabler.Refresh()),
                 onPressed: controller.regenerate,
               ),
               ?trailing,

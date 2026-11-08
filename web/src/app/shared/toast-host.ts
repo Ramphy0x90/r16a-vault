@@ -1,62 +1,110 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 
 import { ToastService } from '../core/ui/toast.service';
+import { Icon } from './icon';
 
+/**
+ * Compact notifications in the bottom corner. They rise in from where they rest, using a
+ * transition so a burst of toasts retargets smoothly instead of restarting keyframes.
+ */
 @Component({
   selector: 'app-toast-host',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [Icon],
   template: `
-    <div class="region" role="status" aria-live="polite">
+    <ol class="region" role="status" aria-live="polite" aria-label="Notifications">
       @for (t of toasts.toasts(); track t.id) {
-        <div class="toast" [class]="t.kind">
-          <span>{{ t.text }}</span>
+        <li class="toast" [attr.data-kind]="t.kind">
+          <app-icon
+            class="kind"
+            [name]="t.kind === 'error' ? 'alert-circle' : 'circle-check'"
+            [size]="16"
+          />
+          <span class="text">{{ t.text }}</span>
           <button
             type="button"
-            class="icon-btn"
+            class="close"
             (click)="toasts.dismiss(t.id)"
             aria-label="Dismiss notification"
           >
-            ×
+            <app-icon name="x" [size]="14" />
           </button>
-        </div>
+        </li>
       }
-    </div>
+    </ol>
   `,
   styles: `
     .region {
       position: fixed;
-      inset: auto 0 16px 0;
+      right: 16px;
+      bottom: 16px;
+      z-index: 50;
       display: flex;
       flex-direction: column;
-      align-items: center;
+      align-items: flex-end;
       gap: 8px;
-      padding: 0 12px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
       pointer-events: none;
-      z-index: 50;
     }
     .toast {
       pointer-events: auto;
       display: flex;
-      align-items: center;
-      gap: 8px;
-      max-width: 520px;
-      width: 100%;
-      padding: 4px 4px 4px 16px;
+      align-items: flex-start;
+      gap: 10px;
+      width: min(360px, calc(100vw - 32px));
+      padding: 12px 10px 12px 14px;
       border-radius: var(--radius);
-      background: var(--color-text);
-      color: var(--color-bg);
-      box-shadow: var(--shadow);
+      background: var(--color-surface);
+      color: var(--color-text);
+      box-shadow: var(--shadow-lg);
+      font-size: 13px;
+      line-height: 1.45;
+      transition:
+        opacity 260ms ease,
+        transform 260ms var(--ease-out);
+      @starting-style {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+      }
     }
-    .toast span {
+    .kind {
+      margin-top: 1px;
+      color: var(--color-accent);
+    }
+    .toast[data-kind='error'] .kind {
+      color: var(--color-danger);
+    }
+    .text {
       flex: 1;
     }
-    .toast .icon-btn {
-      color: inherit;
-      font-size: 1.25rem;
+    .close {
+      display: grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      margin: -2px 0;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--color-text-muted);
+      cursor: pointer;
     }
-    .toast.error {
-      background: var(--color-danger);
-      color: var(--color-on-danger);
+    @media (hover: hover) and (pointer: fine) {
+      .close:hover {
+        background: var(--color-surface-2);
+        color: var(--color-text);
+      }
+    }
+    @media (max-width: 640px) {
+      .region {
+        left: 16px;
+        align-items: stretch;
+      }
+      .toast {
+        width: auto;
+      }
     }
   `,
 })

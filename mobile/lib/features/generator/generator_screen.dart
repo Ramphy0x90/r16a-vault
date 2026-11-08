@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tabler_icons_next/tabler_icons_next.dart' as tabler;
 
 import '../../core/clipboard/clipboard_service.dart';
 import 'generator_controller.dart';
 import 'generator_panel.dart';
+import '../../core/ui/tabler_icon.dart';
 
 class GeneratorScreen extends ConsumerWidget {
   const GeneratorScreen({super.key});
@@ -25,7 +27,7 @@ class GeneratorScreen extends ConsumerWidget {
               controller: ref.read(generatorProvider.notifier),
               trailing: IconButton(
                 tooltip: 'Copy generated value',
-                icon: const Icon(Icons.copy_outlined),
+                icon: const TIcon(tabler.Copy()),
                 onPressed: state.value.isEmpty
                     ? null
                     : () async {
@@ -41,7 +43,7 @@ class GeneratorScreen extends ConsumerWidget {
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: state.value.isEmpty ? null : () => context.go('/vault/add', extra: state.value),
-              icon: const Icon(Icons.add),
+              icon: const TIcon(tabler.Plus()),
               label: const Text('Use in a new credential'),
             ),
           ],

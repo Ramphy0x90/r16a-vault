@@ -1,60 +1,58 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 import { Icon } from '../shared/icon';
+import { CopyButton } from './copy-button';
 
 /** Masked secret with reveal and copy controls. It never holds the value itself. */
 @Component({
   selector: 'app-secret-field',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Icon],
+  imports: [Icon, CopyButton],
   template: `
-    <div class="line">
-      <span class="label">{{ label() }}</span>
-      <span class="value mono" [class.masked]="value() === null">{{
-        value() ?? '••••••••••••'
-      }}</span>
+    <div class="value" [class.masked]="value() === null">
+      @if (value() === null) {
+        <span aria-label="Hidden">••••••••••••</span>
+      } @else {
+        <span class="mono revealed">{{ value() }}</span>
+      }
+    </div>
+    <div class="actions">
       <button
         type="button"
         class="icon-btn"
         [attr.aria-pressed]="value() !== null"
         [attr.aria-label]="(value() !== null ? 'Hide ' : 'Reveal ') + label().toLowerCase()"
+        [disabled]="busy()"
         (click)="revealChange.emit()"
-        [disabled]="busy()"
       >
-        <app-icon [name]="value() !== null ? 'eye-off' : 'eye'" />
+        <app-icon [name]="value() !== null ? 'eye-off' : 'eye'" [size]="16" />
       </button>
-      <button
-        type="button"
-        class="icon-btn"
-        [attr.aria-label]="'Copy ' + label().toLowerCase()"
-        (click)="copyRequest.emit()"
+      <app-copy-button
+        [label]="'Copy ' + label().toLowerCase()"
+        [copied]="copied()"
         [disabled]="busy()"
-      >
-        <app-icon name="copy" />
-      </button>
+        (copyRequest)="copyRequest.emit()"
+      />
     </div>
   `,
   styles: `
-    .line {
-      display: flex;
-      align-items: center;
-      gap: var(--space-1);
-    }
-    .label {
-      width: 92px;
-      flex-shrink: 0;
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--color-text-muted);
+    :host {
+      display: contents;
     }
     .value {
-      flex: 1;
       min-width: 0;
-      word-break: break-all;
+      overflow-wrap: anywhere;
     }
     .masked {
-      letter-spacing: 0.1em;
       color: var(--color-text-muted);
+      letter-spacing: 0.12em;
+    }
+    .revealed {
+      font-size: 13.5px;
+    }
+    .actions {
+      display: flex;
+      gap: 2px;
     }
   `,
 })
@@ -62,6 +60,7 @@ export class SecretField {
   readonly label = input.required<string>();
   readonly value = input<string | null>(null);
   readonly busy = input(false);
+  readonly copied = input(false);
   readonly revealChange = output<void>();
   readonly copyRequest = output<void>();
 }

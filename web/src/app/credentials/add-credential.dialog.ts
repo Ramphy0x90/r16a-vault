@@ -41,8 +41,14 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
   imports: [ReactiveFormsModule, Dialog, Icon, GeneratorPanel],
   providers: [GeneratorStore],
   template: `
-    <app-dialog heading="Add credential" [open]="open()" (closed)="close()">
-      <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate autocomplete="off">
+    <app-dialog
+      heading="Add credential"
+      description="Encrypted on this device before it is saved."
+      [width]="520"
+      [open]="open()"
+      (closed)="close()"
+    >
+      <form class="form" [formGroup]="form" (ngSubmit)="submit()" novalidate autocomplete="off">
         <div class="field">
           <label for="cred-name">Name</label>
           <input
@@ -50,6 +56,7 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
             class="input"
             formControlName="name"
             autocomplete="off"
+            placeholder="e.g. Work email"
             aria-describedby="cred-name-err"
             [attr.aria-invalid]="err('name') ? 'true' : null"
           />
@@ -57,39 +64,43 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
             <span id="cred-name-err" class="error-text">Give this credential a name.</span>
           }
         </div>
-        <div class="field">
-          <label for="cred-url">Website <span class="muted">(optional)</span></label>
-          <input
-            id="cred-url"
-            class="input"
-            formControlName="url"
-            inputmode="url"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="example.com"
-            aria-describedby="cred-url-err"
-            [attr.aria-invalid]="err('url') ? 'true' : null"
-            (blur)="tidyUrl()"
-          />
-          @if (err('url')) {
-            <span id="cred-url-err" class="error-text"
-              >Enter a web address such as example.com.</span
-            >
-          }
+
+        <div class="two">
+          <div class="field">
+            <label for="cred-url">Website <span class="label-hint">(optional)</span></label>
+            <input
+              id="cred-url"
+              class="input"
+              formControlName="url"
+              inputmode="url"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="example.com"
+              aria-describedby="cred-url-err"
+              [attr.aria-invalid]="err('url') ? 'true' : null"
+              (blur)="tidyUrl()"
+            />
+            @if (err('url')) {
+              <span id="cred-url-err" class="error-text"
+                >Enter a web address such as example.com.</span
+              >
+            }
+          </div>
+          <div class="field">
+            <label for="cred-username">Username or email</label>
+            <input
+              id="cred-username"
+              class="input"
+              formControlName="username"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              data-1p-ignore
+              data-lpignore="true"
+            />
+          </div>
         </div>
-        <div class="field">
-          <label for="cred-username">Username or email</label>
-          <input
-            id="cred-username"
-            class="input"
-            formControlName="username"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            data-1p-ignore
-            data-lpignore="true"
-          />
-        </div>
+
         <div class="field">
           <label for="cred-password">Password</label>
           <div class="input-group">
@@ -112,7 +123,7 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
               [attr.aria-label]="showPw() ? 'Hide password' : 'Show password'"
               (click)="showPw.set(!showPw())"
             >
-              <app-icon [name]="showPw() ? 'eye-off' : 'eye'" />
+              <app-icon [name]="showPw() ? 'eye-off' : 'eye'" [size]="16" />
             </button>
             <button
               type="button"
@@ -120,18 +131,21 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
               [attr.aria-expanded]="generating()"
               aria-controls="cred-generator"
               aria-label="Generate a password"
+              [attr.aria-pressed]="generating()"
               (click)="generating.set(!generating())"
             >
-              <app-icon name="dice" />
+              <app-icon name="wand" [size]="16" />
             </button>
           </div>
           @if (err('password')) {
             <span id="cred-password-err" class="error-text">Enter or generate a password.</span>
           }
         </div>
+
         @if (generating()) {
-          <div id="cred-generator" class="gen card">
+          <div id="cred-generator" class="gen">
             <app-generator-panel
+              [compact]="true"
               [mode]="gen.mode()"
               [value]="gen.value()"
               [entropy]="gen.entropy()"
@@ -144,18 +158,23 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
               (randomChange)="gen.updateRandom($event)"
               (passphraseChange)="gen.updatePassphrase($event)"
             />
-            <button
-              type="button"
-              class="btn btn-primary"
-              (click)="useGenerated()"
-              [disabled]="!gen.value()"
-            >
-              Use this password
-            </button>
+            <div class="gen-actions">
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm"
+                (click)="useGenerated()"
+                [disabled]="!gen.value()"
+              >
+                <app-icon name="check" [size]="15" /> Use this password
+              </button>
+            </div>
           </div>
         }
+
         <div class="field">
-          <label for="cred-totp">Authenticator secret <span class="muted">(optional)</span></label>
+          <label for="cred-totp"
+            >Authenticator secret <span class="label-hint">(optional)</span></label
+          >
           <input
             id="cred-totp"
             class="input mono"
@@ -165,27 +184,34 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
             spellcheck="false"
             data-1p-ignore
             data-lpignore="true"
+            placeholder="Base32 key or otpauth:// link"
             aria-describedby="cred-totp-hint cred-totp-err"
             [attr.aria-invalid]="err('mfaSecret') ? 'true' : null"
           />
-          <span id="cred-totp-hint" class="hint"
-            >The base32 key or otpauth link shown when you set up two factor sign in.</span
-          >
           @if (err('mfaSecret')) {
             <span id="cred-totp-err" class="error-text"
               >This does not look like a valid authenticator secret.</span
             >
           } @else if (preview()) {
-            <span class="hint"
-              >Current code <strong class="mono">{{ preview() }}</strong
-              >. Check it matches your authenticator.</span
+            <span id="cred-totp-hint" class="hint preview">
+              <app-icon name="circle-check" [size]="14" /> Current code
+              <strong class="mono tabular">{{ preview() }}</strong
+              >, check it matches your authenticator.
+            </span>
+          } @else {
+            <span id="cred-totp-hint" class="hint"
+              >The key shown when you set up two factor sign in.</span
             >
           }
         </div>
+
         @if (error()) {
-          <p class="alert alert-error" role="alert">{{ error() }}</p>
+          <p class="alert alert-error" role="alert">
+            <app-icon name="alert-circle" [size]="16" /><span>{{ error() }}</span>
+          </p>
         }
-        <div class="row end">
+
+        <footer>
           <button type="button" class="btn btn-secondary" (click)="close()">Cancel</button>
           <button type="submit" class="btn btn-primary" [disabled]="busy()">
             @if (busy()) {
@@ -193,20 +219,56 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
             }
             Save
           </button>
-        </div>
+        </footer>
       </form>
     </app-dialog>
   `,
   styles: `
+    .form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
     .gen {
       display: flex;
       flex-direction: column;
-      gap: var(--space-4);
-      padding: var(--space-4);
-      background: var(--color-bg);
+      gap: 12px;
+      padding: 14px;
+      border-radius: var(--radius);
+      background: var(--color-surface-2);
+      border: 1px solid var(--color-border-subtle);
     }
-    .end {
+    .gen-actions {
+      display: flex;
       justify-content: flex-end;
+    }
+    .preview {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .preview app-icon {
+      color: var(--color-accent);
+    }
+    .preview strong {
+      color: var(--color-text);
+    }
+    footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    @media (max-width: 520px) {
+      .two {
+        grid-template-columns: 1fr;
+      }
     }
   `,
 })
@@ -218,6 +280,7 @@ export class AddCredentialDialog {
   readonly open = input(false);
   readonly initialPassword = input<string | null>(null);
   readonly closed = output<void>();
+  readonly created = output<string>();
 
   protected readonly form = inject(NonNullableFormBuilder).group({
     name: ['', [Validators.required, Validators.maxLength(200)]],
@@ -255,6 +318,7 @@ export class AddCredentialDialog {
 
   protected useGenerated(): void {
     this.form.controls.password.setValue(this.gen.value());
+    this.showPw.set(true);
     this.generating.set(false);
   }
 
@@ -265,7 +329,7 @@ export class AddCredentialDialog {
     this.error.set('');
     const v = this.form.getRawValue();
     try {
-      await this.store.add({
+      const id = await this.store.add({
         name: v.name.trim(),
         url: normaliseUrl(v.url) ?? null,
         username: v.username.trim(),
@@ -274,6 +338,7 @@ export class AddCredentialDialog {
       });
       this.toast.show(`${v.name.trim()} was saved.`, 'success');
       this.close();
+      this.created.emit(id);
     } catch (e) {
       this.error.set(messageFor(e));
     } finally {

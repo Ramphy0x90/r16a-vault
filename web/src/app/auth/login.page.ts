@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { messageFor } from '../core/api/api-error';
 import { ApiService } from '../core/api/api.service';
 import { SessionService } from '../core/session/session.service';
+import { Icon } from '../shared/icon';
 import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './password-input';
 
@@ -21,11 +22,13 @@ const OIDC_ERRORS: Record<string, string> = {
 @Component({
   selector: 'app-login-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule, RouterLink, AuthLayout, PasswordInput],
+  imports: [ReactiveFormsModule, RouterLink, AuthLayout, PasswordInput, Icon],
   template: `
     <app-auth-layout heading="Sign in" subtitle="Your vault is decrypted on this device only.">
       @if (notice()) {
-        <p class="alert alert-warning" role="status">{{ notice() }}</p>
+        <p class="alert alert-warning" role="status">
+          <app-icon name="alert-triangle" [size]="16" /><span>{{ notice() }}</span>
+        </p>
       }
       <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <div class="field">
@@ -58,23 +61,26 @@ const OIDC_ERRORS: Record<string, string> = {
           }
         </div>
         @if (error()) {
-          <p class="alert alert-error" role="alert">{{ error() }}</p>
+          <p class="alert alert-error" role="alert">
+            <app-icon name="alert-circle" [size]="16" /><span>{{ error() }}</span>
+          </p>
         }
         <button class="btn btn-primary btn-block" type="submit" [disabled]="busy()">
           @if (busy()) {
-            <span class="spinner" aria-hidden="true"></span> Unlocking…
+            <span class="spinner" aria-hidden="true"></span> Deriving keys…
           } @else {
             Sign in
           }
         </button>
       </form>
       @if (oidcName()) {
-        <a class="btn btn-secondary btn-block" href="/api/v1/auth/oidc/start?client=web"
-          >Sign in with {{ oidcName() }}</a
-        >
+        <div class="divider">or</div>
+        <a class="btn btn-secondary btn-block" href="/api/v1/auth/oidc/start?client=web">
+          <app-icon name="fingerprint" [size]="16" /> Continue with {{ oidcName() }}
+        </a>
       }
       @if (registrationEnabled()) {
-        <p class="muted">New here? <a routerLink="/register">Create an account</a></p>
+        <p footer>New here? <a routerLink="/register">Create an account</a></p>
       }
     </app-auth-layout>
   `,
