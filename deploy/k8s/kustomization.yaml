@@ -1,0 +1,14 @@
+# Apply the migration job first (kubectl apply -f migrate-job.yaml, wait for completion),
+# then the rest with kubectl apply -k. Add secret.enc.yaml through your SOPS tooling, for
+# example the ksops plugin or a decrypt step in CI.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: r16a-vault
+resources:
+  - namespace.yaml
+  - serviceaccounts.yaml
+  - configmap.yaml
+  - networkpolicy.yaml
+  - backend.yaml
+  - web.yaml
+  - ingress.yaml

@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "update users set auth_hash = $2, kdf_salt = $3, kdf_opslimit = $4, kdf_memlimit = $5,\n         wrapped_vault_key = $6, updated_at = now() where id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Bytea",
+        "Int4",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "834c102d52c5cecca9bf1d6d449740fe59121ddd19b0151884a382e80d65480e"
+}

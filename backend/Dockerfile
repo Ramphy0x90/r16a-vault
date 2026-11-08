@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1.7
+# Static musl build on Alpine, shipped on distroless static as a non root user.
+# Build context is the backend directory. Queries are checked against the committed .sqlx
+# cache, so no database is needed at build time.
+
+FROM rust:1.97-alpine AS build
+RUN apk add --no-cache musl-dev gcc
+WORKDIR /src
+ENV SQLX_OFFLINE=true CARGO_NET_RETRY=5
+
+# Dependency layer, rebuilt only when the manifests change.
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && touch src/lib.rs \
+    && cargo build --release --locked \
+    && rm -rf src
+
+COPY .sqlx ./.sqlx
+COPY migrations ./migrations
+COPY src ./src
+# Copied files keep their host timestamps, which can be older than the placeholder build
+# above. Touching them forces cargo to rebuild the crate itself.
+RUN touch src/main.rs src/lib.rs && cargo build --release --locked && strip target/release/r16a-vault-backend
+
+FROM gcr.io/distroless/static-debian13:nonroot
+COPY --from=build /src/target/release/r16a-vault-backend /r16a-vault-backend
+USER 65532:65532
+EXPOSE 8081
+ENTRYPOINT ["/r16a-vault-backend"]
+CMD ["serve"]

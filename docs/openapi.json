@@ -1,0 +1,882 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "r16a-vault API",
+    "description": "Zero knowledge credential vault. Credential fields are opaque ciphertext produced by the clients.",
+    "version": "1"
+  },
+  "paths": {
+    "/api/v1/auth/config": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "auth_config",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthConfigResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "401": {},
+          "429": {}
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Always succeeds, so a client can use it to reset local state even with a dead session.",
+        "operationId": "logout",
+        "responses": {
+          "204": {}
+        }
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "logout_all",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthKeyProof"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "401": {},
+          "429": {}
+        }
+      }
+    },
+    "/api/v1/auth/oidc/callback": {
+      "get": {
+        "tags": [
+          "oidc"
+        ],
+        "summary": "Always redirects, either into the app or back to a page that explains the failure.",
+        "operationId": "callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "state",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "error",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "303": {}
+        }
+      }
+    },
+    "/api/v1/auth/oidc/exchange": {
+      "post": {
+        "tags": [
+          "oidc"
+        ],
+        "operationId": "exchange",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExchangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExchangeResponse"
+                }
+              }
+            }
+          },
+          "400": {}
+        }
+      }
+    },
+    "/api/v1/auth/oidc/pending": {
+      "get": {
+        "tags": [
+          "oidc"
+        ],
+        "summary": "Lets the register page show that it is completing an OIDC sign in.",
+        "operationId": "pending",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingResponse"
+                }
+              }
+            }
+          },
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/auth/oidc/start": {
+      "get": {
+        "tags": [
+          "oidc"
+        ],
+        "operationId": "start",
+        "parameters": [
+          {
+            "name": "client",
+            "in": "path",
+            "description": "`web` or `mobile`.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "challenge",
+            "in": "path",
+            "description": "S256 challenge of a verifier held by the mobile app.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "302": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/auth/prelogin": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "prelogin",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreloginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreloginResponse"
+                }
+              }
+            }
+          },
+          "400": {},
+          "429": {}
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "register",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "400": {},
+          "403": {},
+          "409": {},
+          "429": {}
+        }
+      }
+    },
+    "/api/v1/auth/unlock": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "operationId": "unlock",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthKeyProof"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnlockResponse"
+                }
+              }
+            }
+          },
+          "401": {},
+          "429": {}
+        }
+      }
+    },
+    "/api/v1/credentials": {
+      "get": {
+        "tags": [
+          "credentials"
+        ],
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CredentialDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {},
+          "403": {}
+        }
+      },
+      "post": {
+        "tags": [
+          "credentials"
+        ],
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCredentialRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialDto"
+                }
+              }
+            }
+          },
+          "400": {},
+          "409": {},
+          "413": {}
+        }
+      }
+    },
+    "/api/v1/credentials/{id}": {
+      "delete": {
+        "tags": [
+          "credentials"
+        ],
+        "operationId": "delete",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {},
+          "404": {}
+        }
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeResponse"
+                }
+              }
+            }
+          },
+          "401": {}
+        }
+      },
+      "delete": {
+        "tags": [
+          "account"
+        ],
+        "operationId": "delete_me",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthKeyProof"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "401": {},
+          "429": {}
+        }
+      }
+    },
+    "/api/v1/me/master-password": {
+      "put": {
+        "tags": [
+          "account"
+        ],
+        "operationId": "change_master_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {},
+          "400": {},
+          "401": {},
+          "429": {}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AuthConfigResponse": {
+        "type": "object",
+        "required": [
+          "registrationEnabled",
+          "oidcEnabled"
+        ],
+        "properties": {
+          "oidcDisplayName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "oidcEnabled": {
+            "type": "boolean"
+          },
+          "registrationEnabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AuthKeyProof": {
+        "type": "object",
+        "required": [
+          "authKey"
+        ],
+        "properties": {
+          "authKey": {
+            "$ref": "#/components/schemas/SecretB64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChangePasswordRequest": {
+        "type": "object",
+        "required": [
+          "currentAuthKey",
+          "newAuthKey",
+          "newSalt",
+          "newKdf",
+          "newWrappedVaultKey"
+        ],
+        "properties": {
+          "currentAuthKey": {
+            "$ref": "#/components/schemas/SecretB64"
+          },
+          "newAuthKey": {
+            "$ref": "#/components/schemas/SecretB64"
+          },
+          "newKdf": {
+            "$ref": "#/components/schemas/KdfDto"
+          },
+          "newSalt": {
+            "type": "string",
+            "format": "byte"
+          },
+          "newWrappedVaultKey": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ClientKind": {
+        "type": "string",
+        "enum": [
+          "web",
+          "mobile"
+        ]
+      },
+      "CreateCredentialRequest": {
+        "type": "object",
+        "required": [
+          "id",
+          "meta",
+          "secret"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Generated by the client so it can be bound into the AEAD associated data."
+          },
+          "meta": {
+            "type": "string",
+            "format": "byte",
+            "description": "Sealed blob, base64. Opaque to the server."
+          },
+          "secret": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CredentialDto": {
+        "type": "object",
+        "required": [
+          "id",
+          "meta",
+          "secret",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "meta": {
+            "type": "string",
+            "format": "byte"
+          },
+          "secret": {
+            "type": "string",
+            "format": "byte"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ExchangeRequest": {
+        "type": "object",
+        "required": [
+          "code",
+          "verifier"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "verifier": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExchangeResponse": {
+        "type": "object",
+        "required": [
+          "token",
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "`pre_auth` when an account exists, `pending` when the app must finish registration."
+          },
+          "suggestedUsername": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "type": "string"
+          }
+        }
+      },
+      "KdfDto": {
+        "type": "object",
+        "required": [
+          "alg",
+          "opslimit",
+          "memlimit"
+        ],
+        "properties": {
+          "alg": {
+            "type": "string",
+            "description": "Always `argon2id13`."
+          },
+          "memlimit": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "opslimit": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "authKey"
+        ],
+        "properties": {
+          "authKey": {
+            "$ref": "#/components/schemas/SecretB64"
+          },
+          "client": {
+            "$ref": "#/components/schemas/ClientKind"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": [
+          "user",
+          "kdf",
+          "salt",
+          "wrappedVaultKey"
+        ],
+        "properties": {
+          "kdf": {
+            "$ref": "#/components/schemas/KdfDto"
+          },
+          "salt": {
+            "type": "string",
+            "format": "byte"
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Present only for mobile clients. Web clients receive the token as an HttpOnly cookie."
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserSummary"
+          },
+          "wrappedVaultKey": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "MeResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "kdf",
+          "salt",
+          "sessionState",
+          "createdAt"
+        ],
+        "properties": {
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kdf": {
+            "$ref": "#/components/schemas/KdfDto"
+          },
+          "salt": {
+            "type": "string",
+            "format": "byte"
+          },
+          "sessionState": {
+            "type": "string",
+            "description": "`pre_auth` or `full`."
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      },
+      "PendingResponse": {
+        "type": "object",
+        "properties": {
+          "suggestedUsername": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "PreloginRequest": {
+        "type": "object",
+        "required": [
+          "username"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PreloginResponse": {
+        "type": "object",
+        "required": [
+          "kdf",
+          "salt"
+        ],
+        "properties": {
+          "kdf": {
+            "$ref": "#/components/schemas/KdfDto"
+          },
+          "salt": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "authKey",
+          "kdf",
+          "salt",
+          "wrappedVaultKey"
+        ],
+        "properties": {
+          "authKey": {
+            "$ref": "#/components/schemas/SecretB64"
+          },
+          "client": {
+            "$ref": "#/components/schemas/ClientKind"
+          },
+          "kdf": {
+            "$ref": "#/components/schemas/KdfDto"
+          },
+          "salt": {
+            "type": "string",
+            "format": "byte"
+          },
+          "username": {
+            "type": "string"
+          },
+          "wrappedVaultKey": {
+            "type": "string",
+            "format": "byte"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SecretB64": {
+        "type": "string",
+        "format": "byte",
+        "description": "A base64 key proof. Debug output is redacted and the buffer is wiped on drop,\nso the value cannot end up in logs or linger in freed memory."
+      },
+      "UnlockResponse": {
+        "type": "object",
+        "required": [
+          "kdf",
+          "salt",
+          "wrappedVaultKey"
+        ],
+        "properties": {
+          "kdf": {
+            "$ref": "#/components/schemas/KdfDto"
+          },
+          "salt": {
+            "type": "string",
+            "format": "byte"
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wrappedVaultKey": {
+            "type": "string",
+            "format": "byte"
+          }
+        }
+      },
+      "UserSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "username"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "auth"
+    },
+    {
+      "name": "oidc"
+    },
+    {
+      "name": "account"
+    },
+    {
+      "name": "credentials"
+    }
+  ]
+}

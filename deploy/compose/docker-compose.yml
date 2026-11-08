@@ -1,0 +1,98 @@
+# Local and single host deployment. `docker compose up` serves the app on http://localhost:8080.
+#
+# Plain HTTP on localhost cannot use the __Host- cookie prefix, so this file enables the
+# development cookie. The backend refuses that flag whenever R16A_PUBLIC_URL is https.
+name: r16a-vault
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      R16A_OWNER_PASSWORD: ${R16A_OWNER_PASSWORD:?set R16A_OWNER_PASSWORD in .env}
+      R16A_APP_PASSWORD: ${R16A_APP_PASSWORD:?set R16A_APP_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - ./init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d r16a"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [db]
+    restart: unless-stopped
+
+  migrate:
+    <<: *hardening
+    build:
+      context: ../../backend
+    image: r16a-vault-backend:local
+    command: ["migrate"]
+    environment:
+      R16A_MIGRATE_DATABASE_URL: postgres://r16a_owner:${R16A_OWNER_PASSWORD}@db:5432/r16a
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [db]
+    restart: "no"
+
+  backend:
+    <<: *hardening
+    image: r16a-vault-backend:local
+    environment:
+      R16A_DATABASE_URL: postgres://r16a_app:${R16A_APP_PASSWORD}@db:5432/r16a
+      R16A_PUBLIC_URL: ${R16A_PUBLIC_URL:-http://localhost:8080}
+      R16A_PRELOGIN_SECRET: ${R16A_PRELOGIN_SECRET:?set R16A_PRELOGIN_SECRET in .env}
+      R16A_AUTH_PEPPER: ${R16A_AUTH_PEPPER:-}
+      R16A_DEV_INSECURE_COOKIE: ${R16A_DEV_INSECURE_COOKIE:-true}
+      R16A_REGISTRATION_ENABLED: ${R16A_REGISTRATION_ENABLED:-true}
+      R16A_TRUSTED_PROXY_CIDRS: ${R16A_TRUSTED_PROXY_CIDRS:-172.16.0.0/12}
+      RUST_LOG: ${RUST_LOG:-info,sqlx=warn}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/r16a-vault-backend", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [db, app]
+    restart: unless-stopped
+
+  web:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: web/Dockerfile
+    image: r16a-vault-web:local
+    environment:
+      R16A_BACKEND_UPSTREAM: backend:8081
+    tmpfs:
+      - /tmp
+      - /etc/nginx/conf.d:uid=101,gid=101
+    ports:
+      - "127.0.0.1:${R16A_HTTP_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    networks: [app]
+    restart: unless-stopped
+
+networks:
+  db:
+    internal: true
+  app: {}
+
+volumes:
+  pgdata: {}

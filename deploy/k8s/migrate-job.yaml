@@ -1,0 +1,55 @@
+# Applies schema migrations with the owner role before a rollout. Jobs are immutable, so
+# bump the name suffix with each release. Failed runs stop after three attempts instead of
+# looping against a broken database.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: r16a-migrate-0-1-0
+  namespace: r16a-vault
+  labels:
+    app.kubernetes.io/name: r16a-migrate
+    app.kubernetes.io/part-of: r16a-vault
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 86400
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: r16a-migrate
+        app.kubernetes.io/part-of: r16a-vault
+    spec:
+      serviceAccountName: r16a-migrate
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: registry.example.internal/r16a-vault-backend:0.1.0
+          imagePullPolicy: IfNotPresent
+          args: ["migrate"]
+          env:
+            - name: R16A_MIGRATE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: r16a-backend-secrets
+                  key: R16A_MIGRATE_DATABASE_URL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]

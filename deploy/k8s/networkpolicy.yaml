@@ -1,0 +1,107 @@
+# Default deny in both directions, then only the paths the app needs. Only the backend and
+# the migration job may reach PostgreSQL.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: r16a-vault
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: r16a-vault
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web
+  namespace: r16a-vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: r16a-web
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: r16a-backend
+      ports:
+        - { protocol: TCP, port: 8081 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend
+  namespace: r16a-vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: r16a-backend
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: r16a-web
+      ports:
+        - { protocol: TCP, port: 8081 }
+  egress:
+    # The existing PostgreSQL server. Replace with its address or CIDR.
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.10/32
+      ports:
+        - { protocol: TCP, port: 5432 }
+    # Authentik for OIDC discovery, keys and code exchange. Replace with its address, or
+    # remove this rule while OIDC is disabled.
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.20/32
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: migrate
+  namespace: r16a-vault
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: r16a-migrate
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.10/32
+      ports:
+        - { protocol: TCP, port: 5432 }

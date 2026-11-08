@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into oidc_pending (token_hash, issuer, subject, suggested_username, expires_at)\n         values ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6bfe4595582ac1100d91a9aa34835a520d6a968c6a326de32b72be3c2cd41bf9"
+}

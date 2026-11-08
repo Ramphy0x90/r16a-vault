@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from oidc_pending where token_hash = $1 and expires_at > now()\n         returning issuer, subject, suggested_username",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "issuer",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "issuer"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "subject",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "subject"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "suggested_username",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oidc_pending",
+            "name": "suggested_username"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "c0e2af004f1630dce5137bbf0b916cb55f8cf424672139d8a29ca09d2a220f76"
+}

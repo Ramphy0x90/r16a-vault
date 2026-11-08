@@ -1,0 +1,110 @@
+# API server. Distroless static image, user 65532, nothing writable on disk.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: r16a-backend
+  namespace: r16a-vault
+  labels:
+    app.kubernetes.io/name: r16a-backend
+    app.kubernetes.io/part-of: r16a-vault
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: r16a-backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: r16a-backend
+        app.kubernetes.io/part-of: r16a-vault
+    spec:
+      serviceAccountName: r16a-backend
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: r16a-backend
+      containers:
+        - name: backend
+          image: registry.example.internal/r16a-vault-backend:0.1.0
+          imagePullPolicy: IfNotPresent
+          args: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: r16a-backend-config
+            - secretRef:
+                name: r16a-backend-secrets
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 20
+            timeoutSeconds: 3
+          # Server side Argon2 uses 19 MiB per concurrent login, capped at twice the CPU
+          # count, so the memory limit leaves room for a burst of logins.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 96Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65532
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: r16a-backend
+  namespace: r16a-vault
+  labels:
+    app.kubernetes.io/name: r16a-backend
+spec:
+  selector:
+    app.kubernetes.io/name: r16a-backend
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: r16a-backend
+  namespace: r16a-vault
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: r16a-backend

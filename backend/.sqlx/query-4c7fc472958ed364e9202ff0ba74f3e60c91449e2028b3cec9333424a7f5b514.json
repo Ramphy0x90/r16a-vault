@@ -1,0 +1,112 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select id, username, auth_hash, kdf_salt, kdf_opslimit, kdf_memlimit, wrapped_vault_key, created_at\n         from users where username = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "username",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "username"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "auth_hash",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "auth_hash"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "kdf_salt",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "kdf_salt"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "kdf_opslimit",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "kdf_opslimit"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "kdf_memlimit",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "kdf_memlimit"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "wrapped_vault_key",
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "wrapped_vault_key"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4c7fc472958ed364e9202ff0ba74f3e60c91449e2028b3cec9333424a7f5b514"
+}

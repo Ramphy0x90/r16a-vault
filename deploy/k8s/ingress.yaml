@@ -1,0 +1,34 @@
+# One host, same origin. /api goes straight to the backend, everything else to the web app.
+# TLS is issued by cert-manager and terminated by Traefik.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: r16a-vault
+  namespace: r16a-vault
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: ["vault.example.com"]
+      secretName: r16a-vault-tls
+  rules:
+    - host: vault.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: r16a-backend
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: r16a-web
+                port:
+                  name: http

@@ -1,0 +1,56 @@
+# Rendered by the image entrypoint with envsubst. Only ${R16A_BACKEND_UPSTREAM} and
+# ${R16A_WEB_LISTEN} are substituted, nginx runtime variables are left alone because envsubst is limited to
+# variables that exist in the environment.
+server {
+  listen ${R16A_WEB_LISTEN};
+  root /usr/share/nginx/html;
+
+  # A fresh random value per response, used as the CSP nonce in the header and the page.
+  set $csp_nonce $request_id;
+
+  location = /healthz {
+    access_log off;
+    default_type text/plain;
+    return 200 "ok\n";
+  }
+
+  # Same origin API for local compose. In Kubernetes the ingress routes /api to the
+  # backend directly, and this block is only a fallback.
+  location /api/ {
+    proxy_pass http://${R16A_BACKEND_UPSTREAM};
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 30s;
+    proxy_buffering off;
+  }
+
+  # Hashed bundles never change, so they can be cached for a year.
+  location ~* "^/(?:chunk|main|worker|styles|polyfills)-[A-Za-z0-9_-]+\.(?:js|css)$" {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "public, max-age=31536000, immutable" always;
+    try_files $uri =404;
+  }
+
+  location /assets/ {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "public, max-age=86400" always;
+    try_files $uri =404;
+  }
+
+  location = /index.html {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "no-store" always;
+    sub_filter_once off;
+    sub_filter_types text/html;
+    sub_filter "__CSP_NONCE__" $csp_nonce;
+  }
+
+  # Everything else is either a small unhashed file or an app route served by index.html.
+  location / {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "no-cache" always;
+    try_files $uri /index.html;
+  }
+}

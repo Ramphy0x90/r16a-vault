@@ -1,0 +1,6 @@
+# Build outputs and local tooling, per component ignores live next to each app.
+backend/target/
+shared/tools/vector-verify/target/
+shared/scripts/node_modules/
+.env
+*.dec.yaml

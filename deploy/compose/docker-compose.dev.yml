@@ -1,0 +1,88 @@
+# Local development building blocks. Pick what runs in Docker, run the rest natively.
+#
+#   docker compose -f docker-compose.dev.yml up -d                     PostgreSQL only
+#   docker compose -f docker-compose.dev.yml --profile backend up -d   plus the backend on :8081
+#   docker compose -f docker-compose.dev.yml --profile web up -d       plus the web app on :8080
+#
+# The web container uses host networking and proxies /api to 127.0.0.1:8081, which reaches
+# the backend whether it runs natively (cargo run) or from the backend profile.
+#
+# Every value here is a throwaway development credential, and all ports bind to 127.0.0.1.
+# Use docker-compose.yml with a real .env for anything else.
+name: r16a-vault-dev
+
+x-backend-env: &backend-env
+  R16A_DATABASE_URL: postgres://r16a_app:app-dev-password@db:5432/r16a
+  R16A_MIGRATE_DATABASE_URL: postgres://r16a_owner:owner-dev-password@db:5432/r16a
+  R16A_PUBLIC_URL: http://localhost:4200
+  R16A_EXTRA_ORIGINS: http://localhost:8080
+  R16A_DEV_INSECURE_COOKIE: "true"
+  R16A_PRELOGIN_SECRET: dev-only-prelogin-secret-0123456789abcdef
+  R16A_AUTH_PEPPER: dev-only-auth-pepper-0123456789abcdefghij
+  R16A_TRUSTED_PROXY_CIDRS: 172.16.0.0/12
+  R16A_LOG_FORMAT: pretty
+  RUST_LOG: info,sqlx=warn
+
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      R16A_OWNER_PASSWORD: owner-dev-password
+      R16A_APP_PASSWORD: app-dev-password
+    ports:
+      - "127.0.0.1:${R16A_DEV_DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql
+      - ./init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d r16a"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    profiles: [backend]
+    build:
+      context: ../../backend
+    image: r16a-vault-backend:dev
+    command: ["migrate"]
+    environment: *backend-env
+    depends_on:
+      db:
+        condition: service_healthy
+
+  backend:
+    profiles: [backend]
+    image: r16a-vault-backend:dev
+    environment: *backend-env
+    ports:
+      - "127.0.0.1:8081:8081"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/r16a-vault-backend", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    profiles: [web]
+    build:
+      context: ../..
+      dockerfile: web/Dockerfile
+    image: r16a-vault-web:dev
+    # Host networking lets nginx reach a backend on the host loopback. It listens on
+    # 127.0.0.1 only, so nothing is exposed to the network.
+    network_mode: host
+    environment:
+      R16A_BACKEND_UPSTREAM: 127.0.0.1:8081
+      R16A_WEB_LISTEN: 127.0.0.1:8080
+    tmpfs:
+      - /tmp
+      - /etc/nginx/conf.d:uid=101,gid=101
+
+volumes:
+  pgdata-dev: {}

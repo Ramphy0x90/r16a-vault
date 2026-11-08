@@ -1,0 +1,10 @@
+**/node_modules
+**/target
+**/.angular
+web/dist
+mobile
+backend
+deploy
+docs
+.git
+**/.env

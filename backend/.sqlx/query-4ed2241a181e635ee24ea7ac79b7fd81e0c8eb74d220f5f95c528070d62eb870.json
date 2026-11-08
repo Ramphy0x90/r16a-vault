@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from oidc_pending where expires_at <= now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "4ed2241a181e635ee24ea7ac79b7fd81e0c8eb74d220f5f95c528070d62eb870"
+}

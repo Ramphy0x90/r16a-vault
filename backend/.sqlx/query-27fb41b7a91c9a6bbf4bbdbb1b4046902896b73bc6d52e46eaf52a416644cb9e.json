@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from login_throttle where key_hash = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "27fb41b7a91c9a6bbf4bbdbb1b4046902896b73bc6d52e46eaf52a416644cb9e"
+}

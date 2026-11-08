@@ -1,0 +1,396 @@
+//! Startup configuration read from environment variables.
+//!
+//! Every value is validated once at startup so a misconfigured deployment fails fast
+//! with a message naming the offending variable. Secret values are never echoed back.
+
+use std::{net::SocketAddr, time::Duration};
+
+use ipnet::IpNet;
+use secrecy::{ExposeSecret, SecretBox, SecretString};
+
+#[derive(Debug, thiserror::Error)]
+pub enum ConfigError {
+    #[error("{0} is required but not set")]
+    Missing(&'static str),
+    #[error("{name} is invalid, {reason}")]
+    Invalid { name: &'static str, reason: String },
+}
+
+/// Client Argon2id parameters the server hands out to new or unknown accounts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KdfParams {
+    pub opslimit: u32,
+    pub memlimit: u64,
+}
+
+impl KdfParams {
+    /// Matches the client floor, so prelogin for an unknown user looks like a fresh account.
+    pub const DEFAULT: Self = Self {
+        opslimit: 3,
+        memlimit: 64 * 1024 * 1024,
+    };
+    pub const MIN_OPSLIMIT: u32 = 3;
+    pub const MAX_OPSLIMIT: u32 = 10;
+    pub const MIN_MEMLIMIT: u64 = 64 * 1024 * 1024;
+    pub const MAX_MEMLIMIT: u64 = 1024 * 1024 * 1024;
+
+    pub fn is_acceptable(self) -> bool {
+        (Self::MIN_OPSLIMIT..=Self::MAX_OPSLIMIT).contains(&self.opslimit)
+            && (Self::MIN_MEMLIMIT..=Self::MAX_MEMLIMIT).contains(&self.memlimit)
+    }
+}
+
+/// Authentik or any other OpenID Connect provider. Absent unless R16A_OIDC_ENABLED is true.
+#[derive(Debug)]
+pub struct OidcConfig {
+    pub issuer_url: String,
+    pub client_id: String,
+    pub client_secret: SecretString,
+    pub display_name: String,
+    pub scopes: Vec<String>,
+    /// Custom scheme URL the mobile app registers, which receives one time codes.
+    pub mobile_redirect: String,
+}
+
+#[derive(Debug)]
+pub struct Config {
+    pub bind: SocketAddr,
+    pub database_url: SecretString,
+    /// Used only by the `migrate` subcommand, falls back to `database_url`.
+    pub migrate_database_url: Option<SecretString>,
+    pub public_origin: String,
+    /// Further origins accepted by the CSRF check. Development only, so `ng serve` and the
+    /// dockerised web app can share one local backend.
+    pub extra_origins: Vec<String>,
+    pub prelogin_secret: SecretBox<Vec<u8>>,
+    pub auth_pepper: Option<SecretBox<Vec<u8>>>,
+    pub session_idle: Duration,
+    pub session_absolute: Duration,
+    pub dev_insecure_cookie: bool,
+    pub trusted_proxies: Vec<IpNet>,
+    pub registration_enabled: bool,
+    pub migrate_on_start: bool,
+    pub throttle_ttl: Duration,
+    pub rate_limit_burst: u32,
+    pub rate_limit_period: Duration,
+    pub log_json: bool,
+    pub expose_openapi: bool,
+    pub db_max_connections: u32,
+    pub public_url: String,
+    pub oidc: Option<OidcConfig>,
+}
+
+impl Config {
+    pub fn from_env() -> Result<Self, ConfigError> {
+        Self::from_lookup(|k| std::env::var(k).ok())
+    }
+
+    /// Takes a lookup function so tests can build configs without touching process env.
+    pub fn from_lookup(get: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
+        let get = |k: &str| get(k).filter(|v| !v.trim().is_empty());
+
+        let bind = parse_or(&get, "R16A_BIND", "0.0.0.0:8081".parse().expect("valid literal"))?;
+        let database_url = get("R16A_DATABASE_URL")
+            .map(SecretString::from)
+            .ok_or(ConfigError::Missing("R16A_DATABASE_URL"))?;
+        let migrate_database_url = get("R16A_MIGRATE_DATABASE_URL").map(SecretString::from);
+
+        let public_url = get("R16A_PUBLIC_URL").ok_or(ConfigError::Missing("R16A_PUBLIC_URL"))?;
+        let public_origin = origin_of(&public_url).ok_or_else(|| ConfigError::Invalid {
+            name: "R16A_PUBLIC_URL",
+            reason: "expected an absolute http or https URL such as https://vault.example.com".into(),
+        })?;
+
+        let prelogin_secret =
+            secret_bytes(&get, "R16A_PRELOGIN_SECRET")?.ok_or(ConfigError::Missing("R16A_PRELOGIN_SECRET"))?;
+        let auth_pepper = secret_bytes(&get, "R16A_AUTH_PEPPER")?;
+
+        let session_idle = Duration::from_secs(parse_or(&get, "R16A_SESSION_IDLE_SECS", 1800u64)?);
+        let session_absolute = Duration::from_secs(parse_or(&get, "R16A_SESSION_ABSOLUTE_SECS", 43_200u64)?);
+        if session_idle.as_secs() < 60 || session_absolute < session_idle {
+            return Err(ConfigError::Invalid {
+                name: "R16A_SESSION_IDLE_SECS",
+                reason: "idle timeout must be at least 60 and not exceed the absolute lifetime".into(),
+            });
+        }
+
+        let dev_insecure_cookie = parse_or(&get, "R16A_DEV_INSECURE_COOKIE", false)?;
+        if dev_insecure_cookie && public_origin.starts_with("https://") {
+            return Err(ConfigError::Invalid {
+                name: "R16A_DEV_INSECURE_COOKIE",
+                reason: "must not be enabled when R16A_PUBLIC_URL uses https".into(),
+            });
+        }
+
+        let trusted_proxies = match get("R16A_TRUSTED_PROXY_CIDRS") {
+            None => Vec::new(),
+            Some(list) => list
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| {
+                    s.parse::<IpNet>().map_err(|_| ConfigError::Invalid {
+                        name: "R16A_TRUSTED_PROXY_CIDRS",
+                        reason: format!("'{s}' is not a CIDR such as 10.0.0.0/8"),
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+        };
+
+        let rate_limit_burst = parse_or(&get, "R16A_RATE_LIMIT_BURST", 10u32)?;
+        if rate_limit_burst == 0 {
+            return Err(ConfigError::Invalid {
+                name: "R16A_RATE_LIMIT_BURST",
+                reason: "must be at least 1".into(),
+            });
+        }
+        let rate_limit_period = Duration::from_millis(parse_or(&get, "R16A_RATE_LIMIT_PERIOD_MS", 6000u64)?.max(1));
+
+        let oidc = if parse_or(&get, "R16A_OIDC_ENABLED", false)? {
+            let required = |name: &'static str| get(name).ok_or(ConfigError::Missing(name));
+            let issuer_url = required("R16A_OIDC_ISSUER_URL")?;
+            if !issuer_url.starts_with("https://") && !dev_insecure_cookie {
+                return Err(ConfigError::Invalid {
+                    name: "R16A_OIDC_ISSUER_URL",
+                    reason: "must use https".into(),
+                });
+            }
+            let mobile_redirect =
+                get("R16A_OIDC_MOBILE_REDIRECT").unwrap_or_else(|| String::from("r16avault://oidc-callback"));
+            if mobile_redirect.starts_with("http://") || mobile_redirect.starts_with("https://") {
+                return Err(ConfigError::Invalid {
+                    name: "R16A_OIDC_MOBILE_REDIRECT",
+                    reason: "must be the app's custom scheme, not a web URL".into(),
+                });
+            }
+            Some(OidcConfig {
+                issuer_url,
+                client_id: required("R16A_OIDC_CLIENT_ID")?,
+                client_secret: SecretString::from(required("R16A_OIDC_CLIENT_SECRET")?),
+                display_name: get("R16A_OIDC_DISPLAY_NAME").unwrap_or_else(|| String::from("Authentik")),
+                scopes: get("R16A_OIDC_SCOPES")
+                    .unwrap_or_else(|| String::from("openid profile"))
+                    .split_whitespace()
+                    .filter(|s| *s != "openid")
+                    .map(str::to_owned)
+                    .collect(),
+                mobile_redirect,
+            })
+        } else {
+            None
+        };
+
+        let extra_origins = match get("R16A_EXTRA_ORIGINS") {
+            None => Vec::new(),
+            Some(_) if !dev_insecure_cookie => {
+                return Err(ConfigError::Invalid {
+                    name: "R16A_EXTRA_ORIGINS",
+                    reason: "is only allowed together with R16A_DEV_INSECURE_COOKIE for local development".into(),
+                });
+            }
+            Some(list) => list
+                .split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(|s| {
+                    origin_of(s).ok_or_else(|| ConfigError::Invalid {
+                        name: "R16A_EXTRA_ORIGINS",
+                        reason: format!("'{s}' is not an http or https origin"),
+                    })
+                })
+                .collect::<Result<_, _>>()?,
+        };
+
+        Ok(Self {
+            extra_origins,
+            oidc,
+            public_url: public_url.trim_end_matches('/').to_owned(),
+            bind,
+            database_url,
+            migrate_database_url,
+            public_origin,
+            prelogin_secret,
+            auth_pepper,
+            session_idle,
+            session_absolute,
+            dev_insecure_cookie,
+            trusted_proxies,
+            registration_enabled: parse_or(&get, "R16A_REGISTRATION_ENABLED", true)?,
+            migrate_on_start: parse_or(&get, "R16A_MIGRATE_ON_START", false)?,
+            throttle_ttl: Duration::from_secs(parse_or(&get, "R16A_THROTTLE_TTL_SECS", 86_400u64)?),
+            rate_limit_burst,
+            rate_limit_period,
+            log_json: get("R16A_LOG_FORMAT").is_none_or(|v| v != "pretty"),
+            expose_openapi: parse_or(&get, "R16A_EXPOSE_OPENAPI", false)?,
+            db_max_connections: parse_or(&get, "R16A_DB_MAX_CONNECTIONS", 10u32)?,
+        })
+    }
+
+    pub fn cookie_name(&self) -> &'static str {
+        if self.dev_insecure_cookie {
+            "r16a_session_dev"
+        } else {
+            "__Host-session"
+        }
+    }
+
+    pub fn pepper(&self) -> Option<&[u8]> {
+        self.auth_pepper.as_ref().map(|p| p.expose_secret().as_slice())
+    }
+}
+
+fn parse_or<T: std::str::FromStr>(
+    get: &impl Fn(&str) -> Option<String>,
+    name: &'static str,
+    default: T,
+) -> Result<T, ConfigError> {
+    match get(name) {
+        None => Ok(default),
+        Some(v) => v.trim().parse().map_err(|_| ConfigError::Invalid {
+            name,
+            reason: "could not be parsed".into(),
+        }),
+    }
+}
+
+/// Secrets must carry at least 256 bits so a short placeholder cannot slip into production.
+fn secret_bytes(
+    get: &impl Fn(&str) -> Option<String>,
+    name: &'static str,
+) -> Result<Option<SecretBox<Vec<u8>>>, ConfigError> {
+    match get(name) {
+        None => Ok(None),
+        Some(v) if v.len() >= 32 => Ok(Some(SecretBox::new(Box::new(v.into_bytes())))),
+        Some(_) => Err(ConfigError::Invalid {
+            name,
+            reason: "must be at least 32 characters, generate one with `openssl rand -base64 48`".into(),
+        }),
+    }
+}
+
+/// Reduces a URL to scheme, host and port, which is what browsers put in the Origin header.
+fn origin_of(url: &str) -> Option<String> {
+    let (scheme, rest) = url.split_once("://")?;
+    let scheme = scheme.to_ascii_lowercase();
+    if scheme != "http" && scheme != "https" {
+        return None;
+    }
+    let authority = rest.split(['/', '?', '#']).next()?;
+    if authority.is_empty() || authority.contains('@') {
+        return None;
+    }
+    let authority = authority.to_ascii_lowercase();
+    let authority = match (scheme.as_str(), authority.rsplit_once(':')) {
+        ("https", Some((host, "443"))) | ("http", Some((host, "80"))) => host.to_owned(),
+        _ => authority,
+    };
+    Some(format!("{scheme}://{authority}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn base() -> HashMap<&'static str, String> {
+        HashMap::from([
+            ("R16A_DATABASE_URL", "postgres://x".to_string()),
+            ("R16A_PUBLIC_URL", "https://vault.example.com/".to_string()),
+            ("R16A_PRELOGIN_SECRET", "a".repeat(40)),
+        ])
+    }
+
+    fn load(env: &HashMap<&'static str, String>) -> Result<Config, ConfigError> {
+        Config::from_lookup(|k| env.get(k).cloned())
+    }
+
+    #[test]
+    fn accepts_minimal_config() {
+        let cfg = load(&base()).expect("valid");
+        assert_eq!(cfg.public_origin, "https://vault.example.com");
+        assert_eq!(cfg.cookie_name(), "__Host-session");
+    }
+
+    #[test]
+    fn rejects_short_secret() {
+        let mut env = base();
+        env.insert("R16A_PRELOGIN_SECRET", "short".into());
+        assert!(matches!(
+            load(&env),
+            Err(ConfigError::Invalid {
+                name: "R16A_PRELOGIN_SECRET",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn refuses_insecure_cookie_on_https() {
+        let mut env = base();
+        env.insert("R16A_DEV_INSECURE_COOKIE", "true".into());
+        assert!(load(&env).is_err());
+        env.insert("R16A_PUBLIC_URL", "http://localhost:8080".into());
+        assert_eq!(load(&env).expect("valid").cookie_name(), "r16a_session_dev");
+    }
+
+    #[test]
+    fn missing_secret_names_variable_only() {
+        let mut env = base();
+        env.remove("R16A_PRELOGIN_SECRET");
+        let msg = load(&env).unwrap_err().to_string();
+        assert!(msg.contains("R16A_PRELOGIN_SECRET"));
+    }
+
+    #[test]
+    fn oidc_requires_its_settings_and_rejects_web_mobile_redirects() {
+        let mut env = base();
+        env.insert("R16A_OIDC_ENABLED", "true".into());
+        assert!(matches!(load(&env), Err(ConfigError::Missing("R16A_OIDC_ISSUER_URL"))));
+        env.insert(
+            "R16A_OIDC_ISSUER_URL",
+            "https://auth.example.com/application/o/vault/".into(),
+        );
+        env.insert("R16A_OIDC_CLIENT_ID", "vault".into());
+        env.insert("R16A_OIDC_CLIENT_SECRET", "s".into());
+        let cfg = load(&env).expect("valid");
+        assert_eq!(
+            cfg.oidc.as_ref().map(|o| o.scopes.clone()),
+            Some(vec![String::from("profile")])
+        );
+        env.insert("R16A_OIDC_MOBILE_REDIRECT", "https://evil.example/cb".into());
+        assert!(load(&env).is_err());
+    }
+
+    #[test]
+    fn extra_origins_only_in_development() {
+        let mut env = base();
+        env.insert("R16A_EXTRA_ORIGINS", "http://localhost:8080".into());
+        assert!(matches!(
+            load(&env),
+            Err(ConfigError::Invalid {
+                name: "R16A_EXTRA_ORIGINS",
+                ..
+            })
+        ));
+        env.insert("R16A_PUBLIC_URL", "http://localhost:4200".into());
+        env.insert("R16A_DEV_INSECURE_COOKIE", "true".into());
+        assert_eq!(
+            load(&env).expect("valid").extra_origins,
+            vec![String::from("http://localhost:8080")]
+        );
+    }
+
+    #[test]
+    fn origin_normalisation() {
+        assert_eq!(
+            origin_of("HTTPS://Vault.Example.com:443/x").as_deref(),
+            Some("https://vault.example.com")
+        );
+        assert_eq!(
+            origin_of("http://localhost:8080").as_deref(),
+            Some("http://localhost:8080")
+        );
+        assert_eq!(origin_of("ftp://x"), None);
+        assert_eq!(origin_of("https://u@x"), None);
+    }
+}

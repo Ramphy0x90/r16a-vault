@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select next_allowed_at from login_throttle where key_hash = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next_allowed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "login_throttle",
+            "name": "next_allowed_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0047ce84b86beda0d21d75486b0806a8ed91a9604b6a9ce5a000e08762e6cedc"
+}

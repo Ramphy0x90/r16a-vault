@@ -1,0 +1,22 @@
+# Non secret settings only. Passwords, keys and database URLs live in the Secret.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: r16a-backend-config
+  namespace: r16a-vault
+data:
+  R16A_BIND: "0.0.0.0:8081"
+  R16A_PUBLIC_URL: "https://vault.example.com"
+  R16A_DEV_INSECURE_COOKIE: "false"
+  R16A_REGISTRATION_ENABLED: "true"
+  # Pod network of the cluster, so X-Forwarded-For is trusted only when it comes from Traefik.
+  # 10.244.0.0/16 is the kubeadm plus flannel default, adjust to your CNI.
+  R16A_TRUSTED_PROXY_CIDRS: "10.244.0.0/16"
+  R16A_SESSION_IDLE_SECS: "1800"
+  R16A_SESSION_ABSOLUTE_SECS: "43200"
+  R16A_DB_MAX_CONNECTIONS: "10"
+  RUST_LOG: "info,sqlx=warn"
+  # Single sign on stays off until the secret carries a client id and secret.
+  R16A_OIDC_ENABLED: "false"
+  R16A_OIDC_ISSUER_URL: "https://auth.example.com/application/o/r16a-vault/"
+  R16A_OIDC_DISPLAY_NAME: "Authentik"

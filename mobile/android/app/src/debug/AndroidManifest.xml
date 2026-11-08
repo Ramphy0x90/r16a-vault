@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- Flutter tooling needs network access in debug builds for hot reload and breakpoints. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Debug builds may reach a local compose stack over plain HTTP via the emulator host
+         address. The Dart side only allows this for loopback and 10.0.2.2 in debug mode. -->
+    <application android:usesCleartextTraffic="true" tools:replace="android:usesCleartextTraffic"/>
+</manifest>

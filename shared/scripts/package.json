@@ -1,0 +1,12 @@
+{
+  "name": "r16a-vault-vector-generator",
+  "private": true,
+  "type": "module",
+  "description": "Generates shared/crypto-test-vectors.json with libsodium. Cross checked by shared/tools/vector-verify.",
+  "scripts": {
+    "generate": "node generate-vectors.mjs"
+  },
+  "dependencies": {
+    "libsodium-wrappers-sumo": "0.8.4"
+  }
+}

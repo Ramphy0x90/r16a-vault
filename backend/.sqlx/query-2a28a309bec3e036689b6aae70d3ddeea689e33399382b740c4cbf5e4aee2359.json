@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into login_throttle (key_hash, failures, next_allowed_at, updated_at)\n         values ($1, 1, now(), now())\n         on conflict (key_hash) do update set\n           failures = login_throttle.failures + 1,\n           updated_at = now(),\n           next_allowed_at = now() + make_interval(secs => case\n             when login_throttle.failures + 1 > $2\n             then least(power(2, login_throttle.failures + 1 - $2 - 1), $3)\n             else 0 end)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int4",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2a28a309bec3e036689b6aae70d3ddeea689e33399382b740c4cbf5e4aee2359"
+}

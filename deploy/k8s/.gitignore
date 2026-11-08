@@ -1,0 +1,2 @@
+# Plaintext secrets never enter git. Only the SOPS encrypted secret.enc.yaml is committed.
+*.dec.yaml
