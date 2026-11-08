@@ -10,7 +10,7 @@ const ICONS = [
   'alert-circle', 'alert-triangle', 'arrow-left', 'asterisk', 'check', 'chevron-right', 'circle-check',
   'clock-hour-4', 'copy', 'device-desktop', 'dice-5', 'dots', 'external-link', 'eye', 'eye-off', 'key',
   'lock', 'lock-open', 'logout', 'moon', 'password', 'plus', 'refresh', 'search', 'settings', 'shield-lock',
-  'sun', 'trash', 'user', 'user-circle', 'wand', 'world', 'x', 'fingerprint', 'devices', 'shield-check', 'keyboard',
+  'sun', 'trash', 'user', 'user-circle', 'wand', 'world', 'x', 'fingerprint', 'devices', 'shield-check', 'keyboard', 'menu-2',
 ];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
