@@ -1,4 +1,4 @@
-import { DOCUMENT, Injectable, effect, inject, untracked } from '@angular/core';
+import { DOCUMENT, DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 
 import { ToastService } from '../ui/toast.service';
 import { VaultSessionStore } from '../vault/vault-session.store';
@@ -28,8 +28,14 @@ export class ClipboardService {
       if (this.pending !== null && !this.timer && this.doc.visibilityState === 'visible')
         void this.clear();
     };
-    this.doc.defaultView?.addEventListener('focus', retry);
-    this.doc.addEventListener('visibilitychange', retry);
+    // Removed with the injector, so a stale instance cannot clear or retry for a newer one.
+    const listeners = new AbortController();
+    inject(DestroyRef).onDestroy(() => {
+      listeners.abort();
+      if (this.timer) clearTimeout(this.timer);
+    });
+    this.doc.defaultView?.addEventListener('focus', retry, { signal: listeners.signal });
+    this.doc.addEventListener('visibilitychange', retry, { signal: listeners.signal });
 
     const vault = inject(VaultSessionStore);
     let first = true;

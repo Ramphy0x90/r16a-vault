@@ -1,4 +1,4 @@
-import { DOCUMENT, Injectable, effect, inject, signal } from '@angular/core';
+import { DOCUMENT, DestroyRef, Injectable, effect, inject, signal } from '@angular/core';
 
 import { SessionService } from '../session/session.service';
 import { readPref, writePref } from '../ui/preferences';
@@ -32,10 +32,18 @@ export class AutoLockService {
   }
 
   constructor() {
+    // The listeners sit on the shared document, so they must go with the injector. A stale
+    // instance would otherwise keep reacting to activity and lock through an old session.
+    const listeners = new AbortController();
+    const { signal: abort } = listeners;
+    inject(DestroyRef).onDestroy(() => {
+      listeners.abort();
+      this.clear();
+    });
     const onActivity = () => this.activity();
     for (const ev of ACTIVITY_EVENTS)
-      this.doc.addEventListener(ev, onActivity, { passive: true, capture: true });
-    this.doc.addEventListener('visibilitychange', () => this.visibility());
+      this.doc.addEventListener(ev, onActivity, { passive: true, capture: true, signal: abort });
+    this.doc.addEventListener('visibilitychange', () => this.visibility(), { signal: abort });
     effect(() => {
       this.minutes();
       if (this.store.unlocked()) this.restart();
