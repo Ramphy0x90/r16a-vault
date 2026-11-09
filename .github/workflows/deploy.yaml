@@ -74,6 +74,11 @@ jobs:
               with:
                   manifest-path: backend/Cargo.toml
 
+            - name: Set up Node
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version: "24.22.2"
+
             - name: npm audit
               working-directory: web
               run: npm audit --omit=dev --audit-level=high
