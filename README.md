@@ -4,7 +4,7 @@ A self-hosted, zero-knowledge credential vault. You keep logins (name, website, 
 
 | Part | Stack | Path |
 |---|---|---|
-| Backend | Rust 2024, axum 0.8, sqlx 0.9, PostgreSQL 13 or later (tested on 16 and 18) | `backend/` |
+| Backend | Rust 2024, axum 0.8, sqlx 0.9, PostgreSQL 13 or later (CI tests on 15, the cluster version) | `backend/` |
 | Web app | Angular 22 (standalone, signals, zoneless), libsodium | `web/` |
 | Mobile app | Flutter 3.44, Riverpod 3, go_router, libsodium | `mobile/` |
 | Shared crypto test vectors and wordlist | | `shared/` |
