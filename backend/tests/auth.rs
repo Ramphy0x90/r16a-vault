@@ -650,20 +650,28 @@ async fn parallel_attempts_cannot_share_one_window(db: PgPool) {
         key: [7u8; 32],
         policy: PER_SOURCE,
     };
-    let tasks = (0..30).map(|_| {
-        let db = db.clone();
-        tokio::spawn(async move { claim(&db, &bucket).await.is_ok() })
-    });
+    let started = std::time::Instant::now();
+    let tasks: Vec<_> = (0..30)
+        .map(|_| {
+            let db = db.clone();
+            tokio::spawn(async move { claim(&db, &bucket).await.is_ok() })
+        })
+        .collect();
     let mut passed = 0;
     for t in tasks {
         if t.await.unwrap() {
             passed += 1;
         }
     }
-    assert_eq!(
-        passed,
-        PER_SOURCE.free + 1,
-        "only the free attempts and the first delayed one get through"
+    // Delays after the free attempts are 1, 2, 4 seconds and so on, so a slow machine where the
+    // burst outlasts a window may legitimately let one more attempt through per elapsed window.
+    // A broken claim would let most of the 30 through instead.
+    let elapsed = started.elapsed().as_secs_f64();
+    let reopened = (elapsed + 1.0).log2().floor() as i32;
+    let first_window = PER_SOURCE.free + 1;
+    assert!(
+        (first_window..=first_window + reopened).contains(&passed),
+        "{passed} attempts got through in {elapsed:.2}s, expected {first_window} plus at most {reopened}"
     );
 }
 

@@ -420,7 +420,11 @@ mod tests {
             load(&env).expect("valid").oidc.unwrap().mobile_redirect,
             "https://vault.example.com/app/oidc-callback"
         );
-        for bad in ["r16avault://oidc-callback", "https://evil.example/cb", "http://vault.example.com/app/oidc-callback"] {
+        for bad in [
+            "r16avault://oidc-callback",
+            "https://evil.example/cb",
+            "http://vault.example.com/app/oidc-callback",
+        ] {
             env.insert("R16A_OIDC_MOBILE_REDIRECT", bad.into());
             assert!(load(&env).is_err(), "{bad}");
         }
