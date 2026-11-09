@@ -1,7 +1,9 @@
 -- Initial schema. Runs as the owner role, the runtime role only receives DML grants.
+-- Ids use gen_random_uuid, built in since PostgreSQL 13, so the schema runs on the shared
+-- cluster database too. uuidv7 would need PostgreSQL 18.
 
 create table users (
-  id                 uuid primary key default uuidv7(),
+  id                 uuid primary key default gen_random_uuid(),
   username           text not null unique,
   auth_hash          text not null,
   kdf_salt           bytea not null check (octet_length(kdf_salt) = 16),
@@ -16,7 +18,7 @@ create table users (
 );
 
 create table sessions (
-  id            uuid primary key default uuidv7(),
+  id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references users(id) on delete cascade,
   token_hash    bytea not null unique,
   state         text not null check (state in ('pre_auth', 'full')),

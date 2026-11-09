@@ -285,13 +285,13 @@ OpenAPI. Generated with `utoipa` 6 from the Rust handlers and DTOs, served at `/
 
 ---
 
-## 6. Data model (PostgreSQL 18)
+## 6. Data model (PostgreSQL 13 or later)
 
-Migrations are embedded with `sqlx::migrate!`. Primary keys use PG18 native `uuidv7()` except credentials, where the client supplies the id.
+Migrations are embedded with `sqlx::migrate!`. Primary keys use the built in `gen_random_uuid()` except credentials, where the client supplies the id. It runs on PostgreSQL 13 and later, so the schema also fits an existing shared server. `uuidv7()` was dropped because it needs PostgreSQL 18.
 
 ```sql
 create table users (
-  id                 uuid primary key default uuidv7(),
+  id                 uuid primary key default gen_random_uuid(),
   username           text not null unique,
   auth_hash          text not null,
   kdf_salt           bytea not null check (octet_length(kdf_salt) = 16),
@@ -306,7 +306,7 @@ create table users (
 );
 
 create table sessions (
-  id            uuid primary key default uuidv7(),
+  id            uuid primary key default gen_random_uuid(),
   user_id       uuid not null references users(id) on delete cascade,
   token_hash    bytea not null unique,
   state         text not null check (state in ('pre_auth', 'full')),

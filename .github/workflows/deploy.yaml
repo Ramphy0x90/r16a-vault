@@ -176,5 +176,10 @@ jobs:
             - name: Apply Kubernetes manifests
               run: |
                   kubectl apply -f deploy/k8s/backend.yaml -f deploy/k8s/web.yaml -f deploy/k8s/ingress.yaml
+                  # A re-run deploys the same image tag, so apply changes nothing and a stuck
+                  # rollout would stay stuck. Fresh pods also pick up a corrected Secret.
+                  if [ "$GITHUB_RUN_ATTEMPT" -gt 1 ]; then
+                      kubectl rollout restart deployment/r16a-vault-backend deployment/r16a-vault-web -n r16a-vault
+                  fi
                   kubectl rollout status deployment/r16a-vault-backend -n r16a-vault --timeout=300s
                   kubectl rollout status deployment/r16a-vault-web -n r16a-vault --timeout=120s
