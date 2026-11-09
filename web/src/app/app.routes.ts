@@ -7,19 +7,19 @@ export const routes: Routes = [
   {
     path: 'login',
     canActivate: [anonymousGuard],
-    title: 'Sign in · r16a vault',
+    title: 'Sign in · Zaltys',
     loadComponent: () => import('./auth/login.page').then((m) => m.LoginPage),
   },
   {
     path: 'register',
     canActivate: [anonymousGuard],
-    title: 'Create account · r16a vault',
+    title: 'Create account · Zaltys',
     loadComponent: () => import('./auth/register.page').then((m) => m.RegisterPage),
   },
   {
     path: 'unlock',
     canActivate: [lockedGuard],
-    title: 'Unlock · r16a vault',
+    title: 'Unlock · Zaltys',
     loadComponent: () => import('./auth/unlock.page').then((m) => m.UnlockPage),
   },
   {
@@ -29,18 +29,18 @@ export const routes: Routes = [
     children: [
       {
         path: 'vault',
-        title: 'Vault · r16a vault',
+        title: 'Vault · Zaltys',
         loadComponent: () =>
           import('./credentials/credentials.page').then((m) => m.CredentialsPage),
       },
       {
         path: 'generator',
-        title: 'Generator · r16a vault',
+        title: 'Generator · Zaltys',
         loadComponent: () => import('./generator/generator.page').then((m) => m.GeneratorPage),
       },
       {
         path: 'settings',
-        title: 'Settings · r16a vault',
+        title: 'Settings · Zaltys',
         loadComponent: () => import('./settings/settings.page').then((m) => m.SettingsPage),
       },
     ],

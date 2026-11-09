@@ -38,7 +38,7 @@ class AuthScaffold extends StatelessWidget {
                         child: TIcon(const tabler.ShieldLock(), color: theme.colorScheme.onPrimary, size: 20),
                       ),
                       const SizedBox(width: 8),
-                      Text('r16a vault', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                      Text('Zaltys', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
                     ],
                   ),
                   const SizedBox(height: 24),

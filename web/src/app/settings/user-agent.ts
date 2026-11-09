@@ -28,7 +28,7 @@ const SYSTEMS: readonly [RegExp, string, boolean][] = [
 export function describeUserAgent(ua: string | null): DeviceDescription {
   if (!ua) return { name: 'Unknown device', mobile: false };
   const app = /^r16a vault mobile \((\w+)\)/.exec(ua);
-  if (app) return { name: `r16a vault app on ${app[1]}`, mobile: true };
+  if (app) return { name: `Zaltys app on ${app[1]}`, mobile: true };
   const browser = BROWSERS.find(([re]) => re.test(ua))?.[1];
   const system = SYSTEMS.find(([re]) => re.test(ua));
   if (!browser && !system) return { name: 'Unknown device', mobile: false };

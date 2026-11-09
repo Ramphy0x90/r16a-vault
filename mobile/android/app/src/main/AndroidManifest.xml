@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <!-- Backups are off so the stored session token never leaves the device in a backup. -->
     <application
-        android:label="r16a vault"
+        android:label="Zaltys"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"

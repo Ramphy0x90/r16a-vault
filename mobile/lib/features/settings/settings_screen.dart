@@ -171,14 +171,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'About',
               children: [
                 const Text(
-                  'r16a vault is built on open source software. Passphrases use the EFF large wordlist by the '
+                  'Zaltys is built on open source software. Passphrases use the EFF large wordlist by the '
                   'Electronic Frontier Foundation, licensed CC BY 3.0 US, with the dice numbers removed.',
                 ),
                 const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton(
-                    onPressed: () => showLicensePage(context: context, applicationName: 'r16a vault'),
+                    onPressed: () => showLicensePage(context: context, applicationName: 'Zaltys'),
                     child: const Text('Open source licences'),
                   ),
                 ),

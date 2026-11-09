@@ -20,7 +20,7 @@ describe('describeUserAgent', () => {
 
   it('recognises the mobile app and falls back for anything else', () => {
     expect(describeUserAgent('r16a vault mobile (Android)')).toEqual({
-      name: 'r16a vault app on Android',
+      name: 'Zaltys app on Android',
       mobile: true,
     });
     expect(describeUserAgent(null).name).toBe('Unknown device');

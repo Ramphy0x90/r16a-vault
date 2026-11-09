@@ -26,7 +26,7 @@ class _R16aVaultAppState extends ConsumerState<R16aVaultApp> {
   Widget build(BuildContext context) {
     ref.listen(sessionExpiredProvider, (_, _) => ref.read(sessionServiceProvider).handleExpiry());
     return MaterialApp.router(
-      title: 'r16a vault',
+      title: 'Zaltys',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),

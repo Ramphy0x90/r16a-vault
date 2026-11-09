@@ -12,7 +12,7 @@ import { Icon } from '../shared/icon';
       <div class="column">
         <div class="brand">
           <span class="mark"><app-icon name="shield-lock" [size]="18" [stroke]="2" /></span>
-          <span>r16a vault</span>
+          <span>Zaltys</span>
         </div>
         <section class="card panel" aria-labelledby="auth-title">
           <header>

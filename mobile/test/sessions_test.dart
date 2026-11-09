@@ -3,7 +3,7 @@ import 'package:r16a_vault/features/settings/sessions_section.dart';
 
 void main() {
   test('names devices from their user agents', () {
-    expect(describeDevice('r16a vault mobile (Android)'), 'r16a vault app on Android');
+    expect(describeDevice('r16a vault mobile (Android)'), 'Zaltys app on Android');
     expect(
       describeDevice('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36'),
       'Chrome on Linux',

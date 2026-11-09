@@ -7,5 +7,5 @@ import { installTrustedTypesPolicy } from './app/core/crypto/trusted-types';
 installTrustedTypesPolicy();
 
 bootstrapApplication(App, appConfig).catch(() => {
-  document.body.textContent = 'r16a vault could not start. Please reload the page.';
+  document.body.textContent = 'Zaltys could not start. Please reload the page.';
 });

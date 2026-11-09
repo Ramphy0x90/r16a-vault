@@ -39,9 +39,9 @@ interface NavItem {
     <a class="skip" href="#main">Skip to content</a>
 
     <ng-template #brand>
-      <a routerLink="/vault" class="brand" aria-label="r16a vault home">
+      <a routerLink="/vault" class="brand" aria-label="Zaltys home">
         <span class="mark"><app-icon name="shield-lock" [size]="16" [stroke]="2" /></span>
-        <span>r16a vault</span>
+        <span>Zaltys</span>
       </a>
     </ng-template>
 

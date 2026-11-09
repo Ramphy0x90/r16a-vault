@@ -17,7 +17,7 @@ final sessionsProvider = FutureProvider.autoDispose<List<SessionInfo>>(
 String describeDevice(String? ua) {
   if (ua == null) return 'Unknown device';
   final app = RegExp(r'^r16a vault mobile \((\w+)\)').firstMatch(ua);
-  if (app != null) return 'r16a vault app on ${app.group(1)}';
+  if (app != null) return 'Zaltys app on ${app.group(1)}';
   const browsers = {'Edg/': 'Edge', 'Firefox/': 'Firefox', 'Chrome/': 'Chrome', 'Safari/': 'Safari'};
   const systems = {
     'Android': 'Android',

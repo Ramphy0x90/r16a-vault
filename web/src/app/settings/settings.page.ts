@@ -170,8 +170,8 @@ import { SessionsPanel } from './sessions-panel';
         <h2 id="s-about">About</h2>
         <div class="card about">
           <p class="desc">
-            r16a vault is built on open source software. Passphrases use the EFF large wordlist by
-            the Electronic Frontier Foundation, licensed under CC BY 3.0 US, with the dice numbers
+            Zaltys is built on open source software. Passphrases use the EFF large wordlist by the
+            Electronic Frontier Foundation, licensed under CC BY 3.0 US, with the dice numbers
             removed.
           </p>
           <ul class="links">
