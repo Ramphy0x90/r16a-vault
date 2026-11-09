@@ -1,94 +1,81 @@
-# Static web app on unprivileged nginx, user 101. The root filesystem is read only, the
-# rendered site config and nginx temp files live on emptyDir volumes.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: r16a-web
+  name: r16a-vault-web
   namespace: r16a-vault
   labels:
-    app.kubernetes.io/name: r16a-web
-    app.kubernetes.io/part-of: r16a-vault
+    app: r16a-vault-web
 spec:
-  replicas: 2
-  revisionHistoryLimit: 5
+  replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: r16a-web
+      app: r16a-vault-web
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: r16a-web
-        app.kubernetes.io/part-of: r16a-vault
+        app: r16a-vault-web
     spec:
-      serviceAccountName: r16a-web
+      imagePullSecrets:
+        - name: registry-r16a-vault
       automountServiceAccountToken: false
-      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 101
-        runAsGroup: 101
-        fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: web
-          image: registry.example.internal/r16a-vault-web:0.1.0
-          imagePullPolicy: IfNotPresent
+        - name: r16a-vault-web
+          image: registry.r16a.cloud/r16a-vault-web:latest
+          imagePullPolicy: Always
           ports:
-            - name: http
-              containerPort: 8080
+            - containerPort: 8080
           env:
             - name: R16A_BACKEND_UPSTREAM
-              value: "r16a-backend:8081"
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 20
-          resources:
-            requests:
-              cpu: 20m
-              memory: 32Mi
-            limits:
-              cpu: 250m
-              memory: 64Mi
+              value: r16a-vault-backend:8081
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 101
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "32Mi"
+            limits:
+              cpu: "250m"
+              memory: "64Mi"
+          # nginx writes its rendered config and temp files here, the rest stays read only.
           volumeMounts:
             - name: tmp
               mountPath: /tmp
             - name: conf
               mountPath: /etc/nginx/conf.d
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 5
       volumes:
         - name: tmp
-          emptyDir:
-            sizeLimit: 32Mi
+          emptyDir: {}
         - name: conf
-          emptyDir:
-            sizeLimit: 1Mi
+          emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: r16a-web
+  name: r16a-vault-web
   namespace: r16a-vault
-  labels:
-    app.kubernetes.io/name: r16a-web
 spec:
+  type: ClusterIP
   selector:
-    app.kubernetes.io/name: r16a-web
+    app: r16a-vault-web
   ports:
-    - name: http
-      port: 8080
-      targetPort: http
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

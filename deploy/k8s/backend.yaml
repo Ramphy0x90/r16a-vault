@@ -1,118 +1,113 @@
-# API server. Distroless static image, user 65532, nothing writable on disk.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: r16a-backend
+  name: r16a-vault-backend
   namespace: r16a-vault
   labels:
-    app.kubernetes.io/name: r16a-backend
-    app.kubernetes.io/part-of: r16a-vault
+    app: r16a-vault-backend
 spec:
-  replicas: 2
-  revisionHistoryLimit: 5
+  replicas: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: r16a-backend
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+      app: r16a-vault-backend
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: r16a-backend
-        app.kubernetes.io/part-of: r16a-vault
+        app: r16a-vault-backend
     spec:
-      serviceAccountName: r16a-backend
+      imagePullSecrets:
+        - name: registry-r16a-vault
       automountServiceAccountToken: false
-      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532
-        runAsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app.kubernetes.io/name: r16a-backend
+      # Migrations run as the schema owner before the server starts. The owner URL is
+      # given to this container only, so the running server never sees it.
+      initContainers:
+        - name: migrate
+          image: registry.r16a.cloud/r16a-vault-backend:latest
+          imagePullPolicy: Always
+          args: ["migrate"]
+          env:
+            - name: R16A_MIGRATE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: r16a-vault-secret
+                  key: MIGRATE_DATABASE_URL
+          securityContext: &hardened
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
       containers:
-        - name: backend
-          image: registry.example.internal/r16a-vault-backend:0.1.0
-          imagePullPolicy: IfNotPresent
-          args: ["serve"]
+        - name: r16a-vault-backend
+          image: registry.r16a.cloud/r16a-vault-backend:latest
+          imagePullPolicy: Always
           ports:
-            - name: http
-              containerPort: 8081
-          envFrom:
-            - configMapRef:
-                name: r16a-backend-config
-            - secretRef:
-                name: r16a-backend-secrets
-          readinessProbe:
-            httpGet:
-              path: /readyz
-              port: http
-            periodSeconds: 10
-            timeoutSeconds: 3
+            - containerPort: 8081
+          env:
+            - name: R16A_PUBLIC_URL
+              value: https://zaltys.app
+            # Traefik and Cloudflare sit in front. The private ranges cover the Traefik pods,
+            # the Cloudflare ranges (https://www.cloudflare.com/ips) let the backend find the
+            # real client in X-Forwarded-For. Requires Traefik to trust Cloudflare's headers.
+            - name: R16A_TRUSTED_PROXY_CIDRS
+              value: >-
+                10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,
+                173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,
+                108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,
+                162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,
+                2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,
+                2a06:98c0::/29,2c0f:f248::/32
+            - name: R16A_REGISTRATION_ENABLED
+              value: "true"
+            - name: R16A_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: r16a-vault-secret
+                  key: DATABASE_URL
+            - name: R16A_PRELOGIN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: r16a-vault-secret
+                  key: PRELOGIN_SECRET
+            - name: R16A_AUTH_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: r16a-vault-secret
+                  key: AUTH_PEPPER
+          securityContext: *hardened
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "96Mi"
+            limits:
+              cpu: "1"
+              memory: "256Mi"
           livenessProbe:
             httpGet:
               path: /healthz
-              port: http
+              port: 8081
             initialDelaySeconds: 5
-            periodSeconds: 20
-            timeoutSeconds: 3
-          # Server side Argon2 uses 19 MiB per concurrent login, capped at twice the CPU
-          # count, so the memory limit leaves room for a burst of logins.
-          resources:
-            requests:
-              cpu: 100m
-              memory: 96Mi
-            limits:
-              cpu: "1"
-              memory: 256Mi
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 65532
-            capabilities:
-              drop: ["ALL"]
-          volumeMounts:
-            - name: db-ca
-              mountPath: /etc/r16a/db-ca
-              readOnly: true
-      volumes:
-        - name: db-ca
-          configMap:
-            name: r16a-db-ca
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            periodSeconds: 5
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: r16a-backend
+  name: r16a-vault-backend
   namespace: r16a-vault
-  labels:
-    app.kubernetes.io/name: r16a-backend
 spec:
+  type: ClusterIP
   selector:
-    app.kubernetes.io/name: r16a-backend
+    app: r16a-vault-backend
   ports:
-    - name: http
-      port: 8081
-      targetPort: http
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: r16a-backend
-  namespace: r16a-vault
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: r16a-backend
+    - port: 8081
+      targetPort: 8081
+      protocol: TCP

@@ -1,5 +1,0 @@
-# Encrypts only the data fields of secret manifests, so names and metadata stay reviewable.
-creation_rules:
-  - path_regex: secret\.(dec|enc)\.yaml$
-    encrypted_regex: ^(data|stringData)$
-    age: REPLACE_WITH_AGE_PUBLIC_KEY

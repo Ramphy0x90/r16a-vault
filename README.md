@@ -214,20 +214,32 @@ If you host accounts for anyone beyond your household you are responsible for th
 
 ## Deploy to Kubernetes
 
-The manifests in `deploy/k8s` assume a kubeadm cluster with Traefik, cert-manager and an existing PostgreSQL instance.
+`deploy/k8s` follows the same layout as the other r16a apps: a Deployment and Service per image, one Ingress on `zaltys.app` (`/api` to the backend, everything else to the web app) with cert-manager and Traefik, and the shared PostgreSQL in `r16a-databases`.
 
-1. On PostgreSQL, run `psql -v owner_pw='...' -v app_pw='...' -f deploy/k8s/provision.sql` as a superuser.
-2. Push the two images to your registry. Replace `registry.example.internal/...:0.1.0` in `backend.yaml`, `web.yaml` and `migrate-job.yaml`, and `vault.example.com` in `configmap.yaml` and `ingress.yaml`.
-3. In `networkpolicy.yaml`, set the PostgreSQL and Authentik addresses (`10.0.0.10/32`, `10.0.0.20/32`). In `configmap.yaml`, set the pod CIDR of your CNI (`R16A_TRUSTED_PROXY_CIDRS`). The policies assume Traefik runs in a namespace called `traefik`.
-4. Copy `secret.template.yaml` to `secret.dec.yaml`, fill it in, and encrypt it with `sops --encrypt secret.dec.yaml > secret.enc.yaml` using the age key in `.sops.yaml`. Delete the plaintext copy; `*.dec.yaml` is git-ignored.
-5. Apply the namespace and secret. Run `kubectl apply -f migrate-job.yaml` and wait for it to complete; rename the Job for every release. Then run `kubectl apply -k deploy/k8s`.
+```sh
+# 1. Database and roles on the shared PostgreSQL (once)
+kubectl -n r16a-databases exec -i deploy/postgres -- psql -U postgres \
+  -v owner_pw='...' -v app_pw='...' < deploy/k8s/provision.sql
 
-Every pod:
-- runs as non-root with a read-only root filesystem
-- drops all capabilities and uses the `RuntimeDefault` seccomp profile
-- has no service account token mounted
+# 2. Namespace, registry pull secret and app secret (once)
+kubectl create namespace r16a-vault
+kubectl -n r16a-vault create secret docker-registry registry-r16a-vault \
+  --docker-server=registry.r16a.cloud --docker-username=... --docker-password=...
+cp deploy/k8s/secret.example.yaml deploy/k8s/secret.yaml   # fill in, it is git ignored
+kubectl apply -f deploy/k8s/secret.yaml
 
-The namespace enforces the Pod Security `restricted` profile. Network policies deny everything except Traefik to web and backend, web to backend, backend and migration to PostgreSQL, and backend to Authentik.
+# 3. Build, push, deploy
+docker build -t registry.r16a.cloud/r16a-vault-backend:latest backend
+docker build -t registry.r16a.cloud/r16a-vault-web:latest -f web/Dockerfile .
+docker push registry.r16a.cloud/r16a-vault-backend:latest
+docker push registry.r16a.cloud/r16a-vault-web:latest
+kubectl apply -f deploy/k8s/backend.yaml -f deploy/k8s/web.yaml -f deploy/k8s/ingress.yaml
+kubectl -n r16a-vault rollout restart deploy   # on later releases
+```
+
+Migrations run in an init container of the backend pod with the schema owner credentials; the server container itself only gets the runtime role. Both containers run as non root with a read only filesystem and no capabilities.
+
+`R16A_TRUSTED_PROXY_CIDRS` in `backend.yaml` trusts the private ranges (Traefik pods) and Cloudflare's published ranges, so the per IP rate limit sees real client addresses. That assumes Traefik is configured to trust Cloudflare's forwarded headers (`forwardedHeaders.trustedIPs`); otherwise all clients share Cloudflare's addresses for rate limiting. Keep the Cloudflare list in sync with https://www.cloudflare.com/ips.
 
 ## Known limitations
 
@@ -238,7 +250,7 @@ The namespace enforces the Pod Security `restricted` profile. Network policies d
 - **Clipboard on web.** If the browser blocks reading the clipboard, it's cleared after 30 seconds regardless, which can erase something you copied later. OS clipboard managers may keep copies.
 - **Username enumeration** is possible through registration (the "taken" message). It's rate limited; turn off registration after setup.
 - **Rate limits are per replica.** The per-account backoff is global (stored in the database). Under a distributed guessing attack, anonymous sign in to one account can be slowed to about one attempt a minute; unlocking an existing session is never affected.
-- **Kubernetes needs a NetworkPolicy-enforcing CNI** (Calico, Cilium). See [deploy/k8s/README.md](deploy/k8s/README.md).
+- **No NetworkPolicy in the Kubernetes setup.** Like the other apps on the cluster, anything that can reach the backend Service from inside the cluster or LAN can also set `X-Forwarded-For`. Per account throttling still applies.
 - **No project licence or security contact yet.** Add a `LICENSE` and `SECURITY.md` before sharing the code.
 - **No account recovery**, by design. A forgotten master password means a lost vault.
 - **Not yet done:** editing a credential, linking an existing local account to OIDC, export, QR import of authenticator secrets, biometric unlock, a browser extension.
