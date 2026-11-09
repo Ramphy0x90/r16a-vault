@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart' show sha256;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
@@ -33,7 +35,11 @@ class SessionService {
   /// Set after a first OIDC sign in. Registration then links the new account to that identity.
   ({String token, String? suggestedUsername})? pendingOidc;
 
-  static const oidcScheme = 'r16avault';
+  /// The server host whose verified link this build claims. Android and iOS hand the sign in
+  /// callback only to an app the domain itself vouches for, so the host is fixed when the app
+  /// is built and must match the Android manifest placeholder and the iOS SSO_HOST setting.
+  static const ssoHost = String.fromEnvironment('ZALTYS_SSO_HOST', defaultValue: 'zaltys.app');
+  static const ssoCallbackPath = '/app/oidc-callback';
 
   ApiClient get _api => _ref.read(apiClientProvider);
   TokenStore get _tokens => _ref.read(tokenStoreProvider);
@@ -108,8 +114,9 @@ class SessionService {
     }
   }
 
-  /// Runs the system browser sign in. The app keeps a PKCE style verifier, so the one time
-  /// code that comes back through the custom scheme is useless to any other app.
+  /// Runs the system browser sign in. The code comes back through a verified https link that
+  /// only this app can receive, and it is redeemed together with a PKCE style verifier that
+  /// never leaves the app.
   /// Returns true when the user still has to register.
   Future<bool> signInWithOidc() async {
     final rng = Random.secure();
@@ -118,7 +125,8 @@ class SessionService {
     final server = _ref.read(prefsProvider).getString(PrefKeys.serverUrl) ?? '';
     final result = await FlutterWebAuth2.authenticate(
       url: '$server/api/v1/auth/oidc/start?client=mobile&challenge=$challenge',
-      callbackUrlScheme: oidcScheme,
+      callbackUrlScheme: 'https',
+      options: const FlutterWebAuth2Options(httpsHost: ssoHost, httpsPath: ssoCallbackPath),
     );
     final params = Uri.parse(result).queryParameters;
     final code = params['code'];
@@ -145,6 +153,21 @@ class SessionService {
   }
 
   Future<bool> oidcEnabled() async => (await _api.authConfig())['oidcEnabled'] == true;
+
+  /// Whether this build can receive the sign in callback from `serverUrl`.
+  static bool ssoSupportedFor(String serverUrl) =>
+      Uri.tryParse(serverUrl)?.host == ssoHost &&
+      (!Platform.isIOS || iosSupportsHttpsCallback(Platform.operatingSystemVersion));
+
+  /// https callbacks in ASWebAuthenticationSession arrived in iOS 17.4. Older versions would
+  /// fall back to a scheme any app can claim, which is exactly what verified links avoid.
+  @visibleForTesting
+  static bool iosSupportsHttpsCallback(String osVersion) {
+    final m = RegExp(r'(\d+)\.(\d+)').firstMatch(osVersion);
+    if (m == null) return false;
+    final major = int.parse(m.group(1)!), minor = int.parse(m.group(2)!);
+    return major > 17 || major == 17 && minor >= 4;
+  }
 
   void lock() => _vault.lock();
 

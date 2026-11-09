@@ -245,7 +245,7 @@ Config `R16A_OIDC_ENABLED=false` by default. When on, needs `R16A_OIDC_ISSUER_UR
 - **Existing linked user.** Callback creates a `pre_auth` session. The client shows the Unlock page. `POST /auth/unlock` with `authKey` upgrades it to `full`. Same rate limit and throttle as local login.
 - **First sign-in, no linked user.** Callback creates a row in `oidc_pending (token_hash, issuer, subject, suggested_username, expires_at)` and sets a short-lived pending cookie. The Register page, opened in "complete OIDC sign-up" mode, calls `POST /auth/register` with the same crypto payload. The server consumes the pending row and sets `oidc_issuer`, `oidc_subject` on the new user.
 - Linking an existing local account to OIDC is not built (future, needs an in-session `authKey` proof).
-- **Mobile.** The app generates its own PKCE-style verifier, opens the system browser at `/api/v1/auth/oidc/start?client=mobile&challenge=<S256>`, the callback redirects to `r16avault://oidc-callback?code=<one-time code>`, and the app calls `POST /api/v1/auth/oidc/exchange {code, verifier}`. The code is single use, valid 60 s, and useless without the verifier, which defeats custom-scheme hijacking by another app.
+- **Mobile.** The app generates its own PKCE-style verifier, opens the system browser at `/api/v1/auth/oidc/start?client=mobile&challenge=<S256>`, the callback redirects to the verified link `https://<public host>/app/oidc-callback?code=<one-time code>` (Android App Link through Auth Tab or an `autoVerify` intent filter, iOS associated domain through `ASWebAuthenticationSession` https callbacks, iOS 17.4 or later), and the app calls `POST /api/v1/auth/oidc/exchange {code, verifier}`. The code is single use, valid 60 s, and useless without the verifier. A custom scheme is refused by config, because any app can claim one and could start the flow itself, getting both the code and its own verifier while the identity provider signs the user in silently. The web container serves `assetlinks.json` and `apple-app-site-association` from environment values, and the web app shows a "continue in the app" page if the link ever opens in a browser.
 
 ---
 
@@ -640,6 +640,7 @@ As in the brief section 9.2, specifically:
 | R9 | iOS session token is this device only, Android excludes app data from backup and device transfer. | The token could leave the device through iOS backups. |
 | R10 | Active sessions screen on web and mobile, `GET /me/sessions`, `DELETE /me/sessions/{id}`. | Gives the stored user agent a purpose and lets users end sessions they do not recognise. |
 | R11 | nginx logs keep only the client network and no user agent, compose rotates logs, `R16A_PRIVACY_URL` links a privacy notice, licences and the EFF attribution ship with both apps. | Data minimisation and licence obligations. |
+| R12 | Mobile OIDC callback moved from the `r16avault://` scheme to a verified https link on the public origin. | Any app could register the scheme, start a flow with its own verifier and receive the code when the provider signs in silently. |
 
 ## 12. Future features, kept possible
 

@@ -24,6 +24,7 @@ COPY web/nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /repo/web/dist/r16a-vault-web/browser /usr/share/nginx/html
 # Notices for every bundled npm package, linked from Settings.
 COPY --from=build /repo/web/dist/r16a-vault-web/3rdpartylicenses.txt /usr/share/nginx/html/licenses/third-party.txt
-ENV R16A_BACKEND_UPSTREAM=backend:8081 R16A_WEB_LISTEN=8080
+ENV R16A_BACKEND_UPSTREAM=backend:8081 R16A_WEB_LISTEN=8080 \
+    R16A_ANDROID_PACKAGE=dev.r16a.r16a_vault R16A_ANDROID_CERT_FINGERPRINTS= R16A_APPLE_APP_IDS=
 USER 101
 EXPOSE 8080

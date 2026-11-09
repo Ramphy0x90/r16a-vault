@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyLists-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- The sign in callback is an https link on SSO_HOST. iOS delivers it only to apps that the
+	     host's apple-app-site-association file names. ASWebAuthenticationSession checks the
+	     webcredentials service, applinks covers the link when it opens outside the session. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>webcredentials:$(SSO_HOST)</string>
+		<string>applinks:$(SSO_HOST)</string>
+	</array>
+</dict>
+</plist>

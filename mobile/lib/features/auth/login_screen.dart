@@ -67,6 +67,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         setState(() => _error = 'Single sign on is not enabled on this server.');
         return;
       }
+      if (!SessionService.ssoSupportedFor(server)) {
+        setState(
+          () => _error = Uri.tryParse(server)?.host == SessionService.ssoHost
+              ? 'Single sign on needs iOS 17.4 or later. Sign in with your username instead.'
+              : 'This app can use single sign on only with ${SessionService.ssoHost}. Sign in with your username instead.',
+        );
+        return;
+      }
       final mustRegister = await session.signInWithOidc();
       if (mustRegister && mounted) context.go('/register');
     } catch (e) {

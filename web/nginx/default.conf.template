@@ -1,5 +1,5 @@
-# Rendered by the image entrypoint with envsubst. Only ${R16A_BACKEND_UPSTREAM} and
-# ${R16A_WEB_LISTEN} are substituted, nginx runtime variables are left alone because envsubst is limited to
+# Rendered by the image entrypoint with envsubst. Only the R16A_ variables set in the image
+# or container environment are substituted, nginx runtime variables are left alone because envsubst is limited to
 # variables that exist in the environment.
 server {
   listen ${R16A_WEB_LISTEN};
@@ -24,6 +24,24 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_read_timeout 30s;
     proxy_buffering off;
+  }
+
+  # Domain association for the mobile app. The sign in callback is the https link
+  # /app/oidc-callback, and these files let Android (App Links, Auth Tab) and iOS
+  # (associated domains) hand it only to the genuine Zaltys app. Values come from the
+  # environment, see deploy/k8s/web.yaml. Empty lists simply associate no app.
+  location = /.well-known/assetlinks.json {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "public, max-age=3600" always;
+    default_type application/json;
+    return 200 '[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"${R16A_ANDROID_PACKAGE}","sha256_cert_fingerprints":[${R16A_ANDROID_CERT_FINGERPRINTS}]}}]';
+  }
+
+  location = /.well-known/apple-app-site-association {
+    include /etc/nginx/snippets/security-headers.conf;
+    add_header Cache-Control "public, max-age=3600" always;
+    default_type application/json;
+    return 200 '{"webcredentials":{"apps":[${R16A_APPLE_APP_IDS}]},"applinks":{"details":[{"appIDs":[${R16A_APPLE_APP_IDS}],"components":[{"/":"/app/oidc-callback*"}]}]}}';
   }
 
   # Hashed bundles never change, so they can be cached for a year.

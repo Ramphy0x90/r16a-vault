@@ -5,6 +5,11 @@ import { anonymousGuard, lockedGuard, unlockedGuard } from './core/session/guard
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'vault' },
   {
+    path: 'app/oidc-callback',
+    title: 'Continue in the app · Zaltys',
+    loadComponent: () => import('./auth/app-callback.page').then((m) => m.AppCallbackPage),
+  },
+  {
     path: 'login',
     canActivate: [anonymousGuard],
     title: 'Sign in · Zaltys',

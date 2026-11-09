@@ -137,7 +137,15 @@ All settings are environment variables, validated at startup. Secrets have no de
 | `R16A_OIDC_ISSUER_URL`, `R16A_OIDC_CLIENT_ID`, `R16A_OIDC_CLIENT_SECRET` | required with OIDC | Provider settings. |
 | `R16A_OIDC_DISPLAY_NAME` | `Authentik` | Button label. |
 | `R16A_OIDC_SCOPES` | `openid profile` | Extra scopes. |
-| `R16A_OIDC_MOBILE_REDIRECT` | `r16avault://oidc-callback` | App scheme for mobile sign-in. |
+| `R16A_OIDC_MOBILE_REDIRECT` | `<R16A_PUBLIC_URL>/app/oidc-callback` | Verified https link that hands the mobile sign-in code to the app. Must be https on `R16A_PUBLIC_URL`. |
+
+**Mobile single sign-on uses verified links.** The callback is `https://zaltys.app/app/oidc-callback`, and Android and iOS give it only to the app the domain vouches for. To make it work:
+
+- Set `R16A_ANDROID_CERT_FINGERPRINTS` (SHA-256 of the release signing key, from Play Console under App signing) and `R16A_APPLE_APP_IDS` (`"<TeamID>.dev.r16a.r16aVault"`) on the web container, which then serves `/.well-known/assetlinks.json` and `/.well-known/apple-app-site-association`.
+- In Apple Developer, enable Associated Domains for the app ID.
+- The host is fixed at build time and is `zaltys.app` by default. To build for another server, set `--dart-define=ZALTYS_SSO_HOST=…`, `-PssoHost=…` for Android and `SSO_HOST` in the iOS build settings, all to the same host.
+- Requires iOS 17.4 or later. Older iOS and other servers show a message and fall back to username sign-in.
+- Debug builds signed with the debug key are not in `assetlinks.json` unless you add that key's fingerprint too.
 
 Commands: `r16a-vault-backend serve` (the default), `migrate`, and `healthcheck`, which the distroless image uses because it has no shell or curl.
 

@@ -23,6 +23,8 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // Host of the verified sign in link, see SessionService.ssoHost. Override with -PssoHost=...
+        manifestPlaceholders["ssoHost"] = (project.findProperty("ssoHost") as String?) ?: "zaltys.app"
     }
 
     buildTypes {

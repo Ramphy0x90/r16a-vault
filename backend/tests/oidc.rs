@@ -382,8 +382,8 @@ async fn mobile_code_needs_the_verifier_and_is_single_use(db: PgPool) {
     let code = grant(&idp, &s, "mobile-sub");
     let r = callback(&app, &code, &s.state, None).await;
     let loc = location(&r);
-    assert!(loc.starts_with("r16avault://oidc-callback?code="), "{loc}");
-    let one_time = query(&loc.replacen("r16avault://oidc-callback", "http://x/", 1))["code"].clone();
+    assert!(loc.starts_with(&format!("{ORIGIN}/app/oidc-callback?code=")), "{loc}");
+    let one_time = query(&loc)["code"].clone();
 
     let wrong = app
         .call(
@@ -415,7 +415,7 @@ async fn mobile_code_needs_the_verifier_and_is_single_use(db: PgPool) {
     .await;
     let code = grant(&idp, &s, "mobile-sub");
     let loc = location(&callback(&app, &code, &s.state, None).await);
-    let one_time = query(&loc.replacen("r16avault://oidc-callback", "http://x/", 1))["code"].clone();
+    let one_time = query(&loc)["code"].clone();
     let ok = app
         .call(
             "POST",

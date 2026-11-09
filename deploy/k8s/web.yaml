@@ -32,6 +32,14 @@ spec:
           env:
             - name: R16A_BACKEND_UPSTREAM
               value: r16a-vault-backend:8081
+            # Domain association for the mobile sign in link. Until these are filled in, phones
+            # refuse to hand the link to the app and mobile single sign on fails safely.
+            # Android, SHA-256 of the release signing key (Play Console, App signing), quoted and comma separated.
+            - name: R16A_ANDROID_CERT_FINGERPRINTS
+              value: ""
+            # iOS, "<TeamID>.<bundle id>", quoted and comma separated.
+            - name: R16A_APPLE_APP_IDS
+              value: ""
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

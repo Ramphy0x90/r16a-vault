@@ -96,3 +96,4 @@ The repository is not ready for store submission. Before you publish, you need t
 - Answer the Play Data safety form and the App Store privacy label consistently with your privacy notice. The publisher receives no data, while each operator receives the data in section 2.
 - Publish a web page explaining account deletion, as Play requires: in app via Settings > Delete account, otherwise by contacting the operator.
 - Provide a reachable review server and a demo account for app review.
+- For single sign-on, put the release key's SHA-256 fingerprint and the iOS app ID into `R16A_ANDROID_CERT_FINGERPRINTS` and `R16A_APPLE_APP_IDS` on the web container, and enable Associated Domains for the app ID. Check with `curl https://zaltys.app/.well-known/assetlinks.json` and Google's Statement List tester.

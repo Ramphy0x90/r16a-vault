@@ -48,7 +48,8 @@ pub struct OidcConfig {
     pub client_secret: SecretString,
     pub display_name: String,
     pub scopes: Vec<String>,
-    /// Custom scheme URL the mobile app registers, which receives one time codes.
+    /// Verified https link (Android App Link, iOS associated domain) that hands the one time
+    /// code to the mobile app. Only the genuine app can claim it, unlike a custom scheme.
     pub mobile_redirect: String,
 }
 
@@ -157,12 +158,16 @@ impl Config {
                     reason: "must use https".into(),
                 });
             }
-            let mobile_redirect =
-                get("R16A_OIDC_MOBILE_REDIRECT").unwrap_or_else(|| String::from("r16avault://oidc-callback"));
-            if mobile_redirect.starts_with("http://") || mobile_redirect.starts_with("https://") {
+            // Custom schemes can be claimed by any app on the phone, so the code would be
+            // exposed to whichever app wins the redirect. Only a verified link on our own
+            // origin is accepted.
+            let mobile_redirect = get("R16A_OIDC_MOBILE_REDIRECT")
+                .unwrap_or_else(|| format!("{}/app/oidc-callback", public_url.trim_end_matches('/')));
+            let same_origin = origin_of(&mobile_redirect).is_some_and(|o| o == public_origin);
+            if !same_origin || !mobile_redirect.starts_with("https://") && !dev_insecure_cookie {
                 return Err(ConfigError::Invalid {
                     name: "R16A_OIDC_MOBILE_REDIRECT",
-                    reason: "must be the app's custom scheme, not a web URL".into(),
+                    reason: "must be an https link on R16A_PUBLIC_URL that the app verifies as an App Link and associated domain".into(),
                 });
             }
             Some(OidcConfig {
@@ -396,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn oidc_requires_its_settings_and_rejects_web_mobile_redirects() {
+    fn oidc_requires_its_settings_and_only_verified_mobile_links() {
         let mut env = base();
         env.insert("R16A_OIDC_ENABLED", "true".into());
         assert!(matches!(load(&env), Err(ConfigError::Missing("R16A_OIDC_ISSUER_URL"))));
@@ -411,8 +416,14 @@ mod tests {
             cfg.oidc.as_ref().map(|o| o.scopes.clone()),
             Some(vec![String::from("profile")])
         );
-        env.insert("R16A_OIDC_MOBILE_REDIRECT", "https://evil.example/cb".into());
-        assert!(load(&env).is_err());
+        assert_eq!(
+            load(&env).expect("valid").oidc.unwrap().mobile_redirect,
+            "https://vault.example.com/app/oidc-callback"
+        );
+        for bad in ["r16avault://oidc-callback", "https://evil.example/cb", "http://vault.example.com/app/oidc-callback"] {
+            env.insert("R16A_OIDC_MOBILE_REDIRECT", bad.into());
+            assert!(load(&env).is_err(), "{bad}");
+        }
     }
 
     #[test]
