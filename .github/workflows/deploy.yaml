@@ -1,0 +1,169 @@
+name: Build & Deploy Zaltys
+
+on:
+    push:
+        branches: [main]
+        # The mobile app and docs are not part of the deployment.
+        paths-ignore:
+            - "mobile/**"
+            - "docs/**"
+            - "**.md"
+    workflow_dispatch:
+
+# Third party actions are pinned to commit SHAs because a moved tag could otherwise run
+# foreign code on the runner that holds the registry login and the cluster kubeconfig.
+jobs:
+    test:
+        runs-on: self-hosted
+        env:
+            SQLX_OFFLINE: "true"
+
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Set up Rust
+              uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+              with:
+                  toolchain: stable
+                  components: clippy
+
+            - name: Start throwaway PostgreSQL
+              # sqlx::test creates a fresh database per test, so it needs its own server.
+              run: |
+                  docker run -d --rm --name "pg-$GITHUB_RUN_ID" -e POSTGRES_PASSWORD=postgres \
+                      -p 127.0.0.1::5432 postgres:18
+                  port=$(docker port "pg-$GITHUB_RUN_ID" 5432/tcp | head -1 | cut -d: -f2)
+                  echo "DATABASE_URL=postgres://postgres:postgres@127.0.0.1:$port/postgres" >> "$GITHUB_ENV"
+                  for _ in $(seq 30); do docker exec "pg-$GITHUB_RUN_ID" pg_isready -U postgres && break; sleep 1; done
+
+            - name: Backend clippy
+              working-directory: backend
+              run: cargo clippy --all-targets --locked -- -D warnings
+
+            - name: Backend tests
+              working-directory: backend
+              run: cargo test --locked
+
+            - name: Stop PostgreSQL
+              if: always()
+              run: docker rm -f "pg-$GITHUB_RUN_ID" || true
+
+            - name: Set up Node
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version: "24.22.2"
+                  cache: npm
+                  cache-dependency-path: web/package-lock.json
+
+            - name: Web lint and tests
+              working-directory: web
+              run: |
+                  npm ci
+                  npm run sync-shared
+                  npm run lint
+                  npm test
+
+    security:
+        runs-on: self-hosted
+
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Rust advisories and licences (cargo deny)
+              uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+              with:
+                  manifest-path: backend/Cargo.toml
+
+            - name: npm audit
+              working-directory: web
+              run: npm audit --omit=dev --audit-level=high
+
+            - name: OWASP Dependency Check
+              uses: dependency-check/Dependency-Check_Action@75ba02d6183445fe0761d26e836bde58b1560600 # 1.1.0
+              with:
+                  project: "zaltys"
+                  path: "."
+                  format: "HTML"
+                  args: >
+                      --failOnCVSS 7
+                      --enableRetired
+                      --enableExperimental
+                      --exclude "**/mobile/**"
+                      --exclude "**/node_modules/**"
+                      --exclude "**/target/**"
+              env:
+                  NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+
+            - name: Upload OWASP report
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              if: always()
+              with:
+                  name: owasp-report
+                  path: reports/
+
+            - name: Trivy filesystem scan
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  scan-type: "fs"
+                  scan-ref: "."
+                  skip-dirs: "mobile"
+                  severity: "CRITICAL,HIGH"
+                  ignore-unfixed: true
+                  exit-code: "1"
+                  format: "table"
+
+    build-and-deploy:
+        needs: [test, security]
+        runs-on: self-hosted
+        environment: Deploy
+        env:
+            KUBECONFIG: /home/r16a-runner/.kube/config
+            REGISTRY: registry.r16a.cloud
+
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Login private registry
+              run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "$REGISTRY" -u "${{ secrets.REGISTRY_USERNAME }}" --password-stdin
+
+            - name: Build images
+              run: |
+                  docker build -t "$REGISTRY/r16a-vault-backend:$GITHUB_SHA" -t "$REGISTRY/r16a-vault-backend:latest" backend
+                  docker build -t "$REGISTRY/r16a-vault-web:$GITHUB_SHA" -t "$REGISTRY/r16a-vault-web:latest" -f web/Dockerfile .
+
+            # Scanned before pushing, so a vulnerable image never reaches the registry.
+            - name: Trivy scan backend image
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  image-ref: ${{ env.REGISTRY }}/r16a-vault-backend:${{ github.sha }}
+                  severity: "CRITICAL,HIGH"
+                  ignore-unfixed: true
+                  exit-code: "1"
+
+            - name: Trivy scan web image
+              uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+              with:
+                  image-ref: ${{ env.REGISTRY }}/r16a-vault-web:${{ github.sha }}
+                  severity: "CRITICAL,HIGH"
+                  ignore-unfixed: true
+                  exit-code: "1"
+
+            - name: Push images
+              run: |
+                  for img in r16a-vault-backend r16a-vault-web; do
+                      docker push "$REGISTRY/$img:$GITHUB_SHA"
+                      docker push "$REGISTRY/$img:latest"
+                  done
+
+            - name: Update deployment images in manifests
+              run: |
+                  sed -i "s|image: $REGISTRY/r16a-vault-backend:.*|image: $REGISTRY/r16a-vault-backend:$GITHUB_SHA|" deploy/k8s/backend.yaml
+                  sed -i "s|image: $REGISTRY/r16a-vault-web:.*|image: $REGISTRY/r16a-vault-web:$GITHUB_SHA|" deploy/k8s/web.yaml
+
+            # Files are listed one by one. secret.example.yaml lives in the same folder, and
+            # applying it would overwrite the real secret with placeholders.
+            - name: Apply Kubernetes manifests
+              run: |
+                  kubectl apply -f deploy/k8s/backend.yaml -f deploy/k8s/web.yaml -f deploy/k8s/ingress.yaml
+                  kubectl rollout status deployment/r16a-vault-backend -n r16a-vault --timeout=300s
+                  kubectl rollout status deployment/r16a-vault-web -n r16a-vault --timeout=120s
