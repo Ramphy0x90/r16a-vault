@@ -175,3 +175,9 @@ Consequences: Covers the current Firefox ESR. Firefox 128 to 139 users cannot in
 Context: Publishing the extension to the stores made the explicit list unworkable. Firefox gives every install a random origin, so each store user would need adding by hand. A secret built into the extension was considered and rejected, because store packages are public and anyone can read it.
 Decision: Without a bearer token, a request passes the CSRF layer by the extension path when its Origin is a well formed `chrome-extension://<32 a-p>` or `moz-extension://<uuid>`, it carries `X-R16a-Request: 1`, and it has no session cookie. `R16A_EXTENSION_ORIGINS` becomes an optional restriction; when set, only listed origins pass.
 Consequences: Store installs work on both browsers with no server change. The origin never proved which extension was calling, and a web page still cannot claim an extension origin or send the custom header, so the CSRF guarantee is unchanged. Any installed extension or native script can reach the sign-in API, as any native client already could, and the auth key proof and per-account throttle remain the real gate. Web cookie sessions keep their full protection.
+
+### 030 Email addresses are valid usernames
+2026-11-10 · accepted
+Context: People expect to sign in with their email address. The old rule allowed only letters, digits, `.`, `_` and `-`, up to 64 characters.
+Decision: Usernames may also contain `+` and `@`, up to 254 characters, the SMTP path limit. Normalisation is unchanged (trim, NFC, lowercase), so `Alice@Example.com` and `alice@example.com` are one account. The server never sends mail and does not validate the address format.
+Consequences: Existing usernames stay valid. Lowercasing the whole address merges local parts that a mail server might treat as distinct, which is harmless because the address is only an identifier. A username that is an email address is personal data like any other username (OPERATING.md section 2).

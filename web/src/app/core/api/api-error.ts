@@ -52,7 +52,7 @@ export function messageFor(e: unknown): string {
     case 'username-taken':
       return 'That username is already taken.';
     case 'invalid-username':
-      return 'Usernames are 3 to 64 letters, digits, dots, hyphens or underscores.';
+      return 'Use an email address, or 3 or more letters, digits, dots, hyphens or underscores.';
     case 'registration-disabled':
       return 'New accounts are disabled on this server.';
     case 'unauthenticated':

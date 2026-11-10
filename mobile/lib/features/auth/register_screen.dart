@@ -10,7 +10,7 @@ import '../../core/theme/theme.dart';
 import 'widgets.dart';
 
 const minMasterPassword = 12;
-final _usernamePattern = RegExp(r'^[\p{L}\p{N}._-]{3,64}$', unicode: true);
+final _usernamePattern = RegExp(r'^[\p{L}\p{N}._+@-]{3,254}$', unicode: true);
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -112,7 +112,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   autofillHints: const [AutofillHints.newUsername],
                   decoration: const InputDecoration(
                     labelText: 'Username',
-                    helperText: '3 to 64 letters, digits, dots, hyphens or underscores',
+                    helperText: 'An email address, or 3 or more letters, digits, dots, hyphens or underscores',
                   ),
                   validator: (v) => _usernamePattern.hasMatch((v ?? '').trim()) ? null : 'Choose a valid username.',
                 ),

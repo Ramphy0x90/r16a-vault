@@ -26,6 +26,8 @@ const MESSAGES: Record<string, string> = {
   'invalid-totp': 'This does not look like a valid authenticator secret.',
   'invalid-url': 'Use a web address such as example.com.',
   'username-taken': 'That username is taken.',
+  'invalid-username':
+    'Use an email address, or 3 or more letters, digits, dots, hyphens or underscores.',
   'registration-disabled': 'This server does not accept new accounts.',
   'sso-failed': 'Single sign on did not complete.',
   'oidc-denied': 'Single sign on was cancelled.',

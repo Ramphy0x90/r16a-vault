@@ -168,7 +168,7 @@ Generation. A Node script (`shared/scripts/generate-vectors.mjs`) using `libsodi
 
 ### 4.1 Username normalisation
 
-`trim` (Unicode whitespace) → NFC → lowercase (Unicode `to_lowercase`). Allowed after normalisation: 3 to 64 characters, letters, digits, `.`, `_`, `-`. Same rule on client (for display) and server (authoritative).
+`trim` (Unicode whitespace) → NFC → lowercase (Unicode `to_lowercase`). Allowed after normalisation: 3 to 254 characters, letters, digits, `.`, `_`, `-`, `+`, `@`, so an email address is a valid username (decision 030). The server never sends mail to it and does not check its shape as an address. Same rule on client (for display) and server (authoritative).
 
 ### 4.2 Prelogin
 

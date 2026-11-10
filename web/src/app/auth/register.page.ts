@@ -20,7 +20,7 @@ import { MIN_MASTER_PASSWORD } from '@zaltys/vault-core';
 
 // Re-exported for settings, which shares the rule.
 export { MIN_MASTER_PASSWORD };
-const USERNAME = /^[\p{L}\p{N}._-]{3,64}$/u;
+const USERNAME = /^[\p{L}\p{N}._+@-]{3,254}$/u;
 
 function matchPasswords(group: AbstractControl): ValidationErrors | null {
   const pw = group.get('password')?.value as string;
@@ -63,7 +63,7 @@ function matchPasswords(group: AbstractControl): ValidationErrors | null {
             [attr.aria-invalid]="err('username') ? 'true' : null"
           />
           <span id="reg-username-hint" class="hint"
-            >3 to 64 letters, digits, dots, hyphens or underscores.</span
+            >An email address, or 3 or more letters, digits, dots, hyphens or underscores.</span
           >
           @if (err('username')) {
             <span id="reg-username-err" class="error-text">Choose a valid username.</span>

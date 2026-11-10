@@ -44,7 +44,7 @@ String messageFor(Object e) {
           ? 'Too many attempts. Try again in ${err.retryAfter} seconds.'
           : 'Too many attempts. Please wait a moment.',
     'username-taken' => 'That username is already taken.',
-    'invalid-username' => 'Usernames are 3 to 64 letters, digits, dots, hyphens or underscores.',
+    'invalid-username' => 'Use an email address, or 3 or more letters, digits, dots, hyphens or underscores.',
     'registration-disabled' => 'New accounts are disabled on this server.',
     'unauthenticated' => 'Your session has ended. Please sign in again.',
     'network' => 'The server could not be reached. Check the address and your connection.',

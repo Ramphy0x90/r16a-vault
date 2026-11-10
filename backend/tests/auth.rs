@@ -62,6 +62,24 @@ async fn usernames_are_normalised_and_unique(db: PgPool) {
 }
 
 #[sqlx::test]
+async fn email_addresses_work_as_usernames(db: PgPool) {
+    let app = TestApp::new(db, &[]);
+    let user = User::new("Alice.Smith+Vault@Example.com", 5);
+    app.register(&user).await;
+    let r = app.login("alice.smith+vault@example.com", &user.auth_key).await;
+    assert_eq!(r.status, StatusCode::OK, "{:?}", r.body);
+    let taken = app
+        .call(
+            "POST",
+            "/api/v1/auth/register",
+            &Auth::None,
+            Some(User::new("ALICE.SMITH+VAULT@EXAMPLE.COM", 6).register_body("web")),
+        )
+        .await;
+    assert_eq!(taken.status, StatusCode::CONFLICT);
+}
+
+#[sqlx::test]
 async fn register_rejects_weak_kdf_bad_sizes_and_unknown_fields(db: PgPool) {
     let app = TestApp::new(db, &[]);
     let u = User::new("carol", 4);
