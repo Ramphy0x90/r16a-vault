@@ -85,34 +85,15 @@ type CopyTarget = 'username' | 'password' | 'code';
       @if (meta().hasTotp) {
         <div class="field-row">
           <span class="label-cell">One time code</span>
-          @if (totp(); as t) {
-            <app-totp-display
-              [code]="code()"
-              [remaining]="remaining()"
-              [period]="t.period"
-              [copied]="copied() === 'code'"
-              (copyRequest)="copyCode()"
-              (hideRequest)="hideTotp()"
-            />
-          } @else {
-            <div class="value">
-              <button
-                type="button"
-                class="btn btn-secondary btn-sm"
-                (click)="showTotp()"
-                [disabled]="busy()"
-              >
-                Show code
-              </button>
-            </div>
-            <div class="actions">
-              <app-copy-button
-                label="Copy one time code"
-                [copied]="copied() === 'code'"
-                (copyRequest)="copyCode()"
-              />
-            </div>
-          }
+          <app-totp-display
+            [code]="totp() ? code() : null"
+            [remaining]="remaining()"
+            [period]="totp()?.period ?? 30"
+            [busy]="busy()"
+            [copied]="copied() === 'code'"
+            (revealChange)="toggleTotp()"
+            (copyRequest)="copyCode()"
+          />
         </div>
       }
       @if (meta().url; as url) {
@@ -321,7 +302,15 @@ export class CredentialDetails {
       this.flashCopied('password');
   }
 
-  protected async showTotp(): Promise<void> {
+  protected async toggleTotp(): Promise<void> {
+    if (this.totp()) {
+      this.hideTotp();
+      return;
+    }
+    await this.showTotp();
+  }
+
+  private async showTotp(): Promise<void> {
     const secret = await this.withSecret();
     const config = secret?.mfaSecret ? parseTotp(secret.mfaSecret) : null;
     if (!config) {
@@ -350,7 +339,7 @@ export class CredentialDetails {
     if (await this.clipboard.copy(code, 'Code')) this.flashCopied('code');
   }
 
-  protected hideTotp(): void {
+  private hideTotp(): void {
     if (this.ticker) clearInterval(this.ticker);
     if (this.totpTimer) clearTimeout(this.totpTimer);
     this.ticker = null;

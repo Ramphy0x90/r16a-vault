@@ -97,16 +97,17 @@ describe('CredentialDetails', () => {
 
   it('shows a grouped live TOTP code with a countdown', async () => {
     vi.setSystemTime(59_000);
-    const show = [...el().querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('Show code'),
-    );
-    show?.click();
+    expect(el().textContent).toContain('••• •••');
+    expect(button('Reveal one time code').getAttribute('aria-pressed')).toBe('false');
+    button('Reveal one time code').click();
     await settle();
+    expect(button('Hide one time code').getAttribute('aria-pressed')).toBe('true');
     expect(el().textContent).toMatch(/\d{3} \d{3}/);
     expect(el().textContent).toContain('1 seconds remaining');
     button('Hide one time code').click();
     await settle();
     expect(el().textContent).not.toMatch(/\d{3} \d{3}/);
+    expect(el().textContent).toContain('••• •••');
   });
 
   it('copies the one time code while it stays hidden', async () => {

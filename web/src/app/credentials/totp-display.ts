@@ -5,28 +5,39 @@ import { CountdownRing } from '../shared/countdown-ring';
 import { Icon } from '../shared/icon';
 import { CopyButton } from './copy-button';
 
-/** Live one time code. Presentational, the parent drives the clock. */
+/**
+ * One time code row that behaves like the password field. Hidden it shows dots, shown it
+ * shows the live code and countdown. Presentational, the parent drives the clock and holds
+ * the secret, so a hidden code is never computed here.
+ */
 @Component({
   selector: 'app-totp-display',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CountdownRing, Icon, CopyButton],
   template: `
-    <div class="value">
-      <span class="code mono tabular" aria-live="off">{{ grouped() }}</span>
-      <app-countdown-ring [remaining]="remaining()" [period]="period()" />
+    <div class="value" [class.masked]="code() === null">
+      @if (code() === null) {
+        <span aria-label="Hidden">••• •••</span>
+      } @else {
+        <span class="code mono tabular" aria-live="off">{{ grouped() }}</span>
+        <app-countdown-ring [remaining]="remaining()" [period]="period()" />
+      }
     </div>
     <div class="actions">
       <button
         type="button"
         class="icon-btn"
-        aria-label="Hide one time code"
-        (click)="hideRequest.emit()"
+        [attr.aria-pressed]="code() !== null"
+        [attr.aria-label]="(code() !== null ? 'Hide' : 'Reveal') + ' one time code'"
+        [disabled]="busy()"
+        (click)="revealChange.emit()"
       >
-        <app-icon name="eye-off" [size]="16" />
+        <app-icon [name]="code() !== null ? 'eye-off' : 'eye'" [size]="16" />
       </button>
       <app-copy-button
         label="Copy one time code"
         [copied]="copied()"
+        [disabled]="busy()"
         (copyRequest)="copyRequest.emit()"
       />
     </div>
@@ -39,6 +50,11 @@ import { CopyButton } from './copy-button';
       display: flex;
       align-items: center;
       gap: 12px;
+      min-height: 32px;
+    }
+    .masked {
+      color: var(--color-text-muted);
+      letter-spacing: 0.12em;
     }
     .code {
       font-size: 20px;
@@ -52,11 +68,12 @@ import { CopyButton } from './copy-button';
   `,
 })
 export class TotpDisplay {
-  readonly code = input.required<string>();
-  readonly remaining = input.required<number>();
-  readonly period = input.required<number>();
+  readonly code = input<string | null>(null);
+  readonly remaining = input(0);
+  readonly period = input(30);
+  readonly busy = input(false);
   readonly copied = input(false);
+  readonly revealChange = output<void>();
   readonly copyRequest = output<void>();
-  readonly hideRequest = output<void>();
-  protected readonly grouped = computed(() => groupCode(this.code()));
+  protected readonly grouped = computed(() => groupCode(this.code() ?? ''));
 }

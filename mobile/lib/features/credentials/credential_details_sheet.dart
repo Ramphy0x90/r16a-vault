@@ -105,14 +105,18 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
     _totpTimer = Timer(totpVisibleDuration, _hideTotp);
   }
 
-  /// Copies the current code without showing it, the same way the password copies while masked.
-  Future<void> _copyHiddenTotp() async {
-    final s = await _secret();
-    final config = s?.mfaSecret == null ? null : parseTotp(s!.mfaSecret!);
-    if (!mounted) return;
+  /// Copies the current code whether or not it is shown, the same way the password copies
+  /// while masked. The code is computed at the moment of copying so it is never stale.
+  Future<void> _copyTotp() async {
+    var config = _totp;
     if (config == null) {
-      if (s != null) setState(() => _error = 'The stored one time code secret is not valid.');
-      return;
+      final s = await _secret();
+      config = s?.mfaSecret == null ? null : parseTotp(s!.mfaSecret!);
+      if (!mounted) return;
+      if (config == null) {
+        if (s != null) setState(() => _error = 'The stored one time code secret is not valid.');
+        return;
+      }
     }
     await ref.read(clipboardServiceProvider).copy(totpCode(config, DateTime.now().millisecondsSinceEpoch));
     _toast('Code copied. The clipboard will be cleared in 30 seconds.');
@@ -207,34 +211,14 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
               ],
             ),
             if (meta.hasTotp)
-              totp == null
-                  ? Row(
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _busy ? null : _showTotp,
-                          icon: const TIcon(tabler.ClockHour4()),
-                          label: const Text('Show one time code'),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          tooltip: 'Copy one time code',
-                          icon: const TIcon(tabler.Copy()),
-                          onPressed: _busy ? null : _copyHiddenTotp,
-                        ),
-                      ],
-                    )
-                  : TotpView(
-                      code: totpCode(totp, _now),
-                      remaining: secondsRemaining(totp, _now),
-                      period: totp.period,
-                      onCopy: () async {
-                        await ref
-                            .read(clipboardServiceProvider)
-                            .copy(totpCode(totp, DateTime.now().millisecondsSinceEpoch));
-                        _toast('Code copied. The clipboard will be cleared in 30 seconds.');
-                      },
-                      onHide: _hideTotp,
-                    ),
+              TotpView(
+                code: totp == null ? null : totpCode(totp, _now),
+                remaining: totp == null ? 0 : secondsRemaining(totp, _now),
+                period: totp?.period ?? 30,
+                busy: _busy,
+                onToggle: totp == null ? _showTotp : _hideTotp,
+                onCopy: _copyTotp,
+              ),
             if (_error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -280,69 +264,85 @@ class _Row extends StatelessWidget {
   );
 }
 
-/// Live one time code with a circular countdown. Presentational, the parent drives the clock.
+/// One time code row that behaves like the password row. Hidden it shows dots, shown it shows
+/// the live code and countdown. Presentational, the parent drives the clock and holds the secret.
 class TotpView extends StatelessWidget {
   const TotpView({
     super.key,
     required this.code,
     required this.remaining,
     required this.period,
+    required this.busy,
+    required this.onToggle,
     required this.onCopy,
-    required this.onHide,
   });
 
-  final String code;
+  final String? code;
   final int remaining;
   final int period;
+  final bool busy;
+  final VoidCallback onToggle;
   final VoidCallback onCopy;
-  final VoidCallback onHide;
 
   @override
   Widget build(BuildContext context) {
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     final scheme = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        const SizedBox(width: 92, child: Text('One time code')),
-        Expanded(
-          child: Text(
-            groupCode(code),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ),
-        Semantics(
-          label: '$remaining seconds remaining',
-          child: SizedBox(
-            width: 36,
-            height: 36,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                TweenAnimationBuilder<double>(
-                  tween: Tween(end: remaining / period),
-                  duration: reduceMotion ? Duration.zero : const Duration(seconds: 1),
-                  builder: (_, v, _) => CircularProgressIndicator(
-                    value: v,
-                    strokeWidth: 3.5,
-                    color: remaining <= 5 ? scheme.error : null,
-                    backgroundColor: scheme.outlineVariant,
+    final shown = code;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Row(
+        children: [
+          SizedBox(width: 92, child: Text('One time code', style: Theme.of(context).textTheme.labelLarge)),
+          Expanded(
+            child: shown == null
+                ? const Text('••• •••', semanticsLabel: 'Hidden')
+                : Text(
+                    groupCode(shown),
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                    ),
                   ),
-                ),
-                ExcludeSemantics(
-                  child: Text('$remaining', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                ),
-              ],
-            ),
           ),
-        ),
-        IconButton(tooltip: 'Copy one time code', icon: const TIcon(tabler.Copy()), onPressed: onCopy),
-        IconButton(tooltip: 'Hide one time code', icon: const TIcon(tabler.EyeOff()), onPressed: onHide),
-      ],
+          if (shown != null)
+            Semantics(
+              label: '$remaining seconds remaining',
+              child: SizedBox(
+                width: 36,
+                height: 36,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(end: remaining / period),
+                      duration: reduceMotion ? Duration.zero : const Duration(seconds: 1),
+                      builder: (_, v, _) => CircularProgressIndicator(
+                        value: v,
+                        strokeWidth: 3.5,
+                        color: remaining <= 5 ? scheme.error : null,
+                        backgroundColor: scheme.outlineVariant,
+                      ),
+                    ),
+                    ExcludeSemantics(
+                      child: Text('$remaining', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          IconButton(
+            tooltip: shown != null ? 'Hide one time code' : 'Reveal one time code',
+            isSelected: shown != null,
+            icon: const TIcon(tabler.Eye()),
+            selectedIcon: const TIcon(tabler.EyeOff()),
+            onPressed: busy ? null : onToggle,
+          ),
+          IconButton(tooltip: 'Copy one time code', icon: const TIcon(tabler.Copy()), onPressed: busy ? null : onCopy),
+        ],
+      ),
     );
   }
 }
