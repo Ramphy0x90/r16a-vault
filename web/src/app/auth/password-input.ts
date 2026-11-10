@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, booleanAttribute, input, signal } from '@angular/core';
 import { ReactiveFormsModule, type FormControl } from '@angular/forms';
 
 import { Icon } from '../shared/icon';
@@ -16,7 +16,11 @@ import { Icon } from '../shared/icon';
         [id]="inputId()"
         [type]="shown() ? 'text' : 'password'"
         [formControl]="control()"
-        [attr.autocomplete]="autocomplete()"
+        [attr.autocomplete]="noAutofill() ? 'new-password' : autocomplete()"
+        [attr.data-1p-ignore]="noAutofill() ? '' : null"
+        [attr.data-lpignore]="noAutofill() ? 'true' : null"
+        [attr.data-bwignore]="noAutofill() ? 'true' : null"
+        [attr.data-form-type]="noAutofill() ? 'other' : null"
         [attr.aria-invalid]="invalid() ? 'true' : null"
         [attr.aria-describedby]="describedBy() || null"
         autocapitalize="off"
@@ -38,6 +42,13 @@ export class PasswordInput {
   readonly control = input.required<FormControl<string>>();
   readonly inputId = input.required<string>();
   readonly autocomplete = input<'current-password' | 'new-password' | 'off'>('current-password');
+  /**
+   * Keeps browsers and password manager extensions from filling or offering passwords here.
+   * Browsers ignore autocomplete off on password fields, but they do not fill saved passwords
+   * into one marked new-password. The data attributes opt out of 1Password, LastPass,
+   * Bitwarden and Dashlane, which use their own detection.
+   */
+  readonly noAutofill = input(false, { transform: booleanAttribute });
   readonly invalid = input(false);
   readonly describedBy = input('');
   protected readonly shown = signal(false);

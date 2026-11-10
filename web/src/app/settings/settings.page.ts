@@ -79,21 +79,12 @@ import { SessionsPanel } from './sessions-panel';
             Your entries stay encrypted with the same vault key, only the key protecting it changes.
             Other sessions are signed out.
           </p>
-          <input
-            type="text"
-            class="visually-hidden"
-            autocomplete="username"
-            [value]="vault.username() ?? ''"
-            tabindex="-1"
-            aria-hidden="true"
-            readonly
-          />
           <div class="field">
             <label for="cp-current">Current master password</label>
             <app-password-input
               [control]="pwForm.controls.current"
               inputId="cp-current"
-              autocomplete="current-password"
+              noAutofill
             />
           </div>
           <div class="two">
@@ -102,7 +93,7 @@ import { SessionsPanel } from './sessions-panel';
               <app-password-input
                 [control]="pwForm.controls.next"
                 inputId="cp-next"
-                autocomplete="new-password"
+                noAutofill
                 [invalid]="pwErrors() && pwForm.controls.next.invalid"
                 describedBy="cp-next-err"
               />
@@ -115,7 +106,7 @@ import { SessionsPanel } from './sessions-panel';
               <app-password-input
                 [control]="pwForm.controls.confirm"
                 inputId="cp-confirm"
-                autocomplete="new-password"
+                noAutofill
                 [invalid]="pwMismatch()"
                 describedBy="cp-confirm-err"
               />
@@ -150,7 +141,7 @@ import { SessionsPanel } from './sessions-panel';
               <app-password-input
                 [control]="allForm.controls.password"
                 inputId="la-password"
-                autocomplete="current-password"
+                noAutofill
               />
             </div>
             <button class="btn btn-secondary" type="submit" [disabled]="busy()">
@@ -233,6 +224,10 @@ import { SessionsPanel } from './sessions-panel';
                 autocomplete="off"
                 autocapitalize="off"
                 spellcheck="false"
+                data-1p-ignore
+                data-lpignore="true"
+                data-bwignore="true"
+                data-form-type="other"
               />
             </div>
             <div class="field">
@@ -240,7 +235,7 @@ import { SessionsPanel } from './sessions-panel';
               <app-password-input
                 [control]="delForm.controls.password"
                 inputId="del-password"
-                autocomplete="current-password"
+                noAutofill
               />
             </div>
           </div>

@@ -97,6 +97,8 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
               spellcheck="false"
               data-1p-ignore
               data-lpignore="true"
+              data-bwignore="true"
+              data-form-type="other"
             />
           </div>
         </div>
@@ -109,9 +111,11 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
               class="input mono"
               [type]="showPw() ? 'text' : 'password'"
               formControlName="password"
-              autocomplete="off"
+              autocomplete="new-password"
               data-1p-ignore
               data-lpignore="true"
+              data-bwignore="true"
+              data-form-type="other"
               spellcheck="false"
               aria-describedby="cred-password-err"
               [attr.aria-invalid]="err('password') ? 'true' : null"
@@ -184,6 +188,8 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
             spellcheck="false"
             data-1p-ignore
             data-lpignore="true"
+            data-bwignore="true"
+            data-form-type="other"
             placeholder="Base32 key or otpauth:// link"
             aria-describedby="cred-totp-hint cred-totp-err"
             [attr.aria-invalid]="err('mfaSecret') ? 'true' : null"
