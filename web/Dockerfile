@@ -22,9 +22,13 @@ RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.30-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03
 # Pull in Alpine security fixes newer than the base image, and drop curl, which nothing
-# here uses. Health checks rely on busybox wget.
+# here uses. Health checks rely on busybox wget. The instruction text never changes, so
+# without APK_REFRESH Docker would reuse a cached layer and ship packages from whenever it
+# was first built. CI passes the commit SHA, so this layer and the small ones after it are
+# rebuilt every time while the npm and Angular build stage stays cached.
+ARG APK_REFRESH=unset
 USER root
-RUN apk upgrade --no-cache && apk del --no-cache curl
+RUN echo "apk refresh ${APK_REFRESH}" && apk upgrade --no-cache && apk del --no-cache curl
 # The stock site config is replaced by a template rendered at start, see nginx/default.conf.template.
 RUN rm -f /etc/nginx/conf.d/default.conf
 COPY web/nginx/nginx.conf /etc/nginx/nginx.conf

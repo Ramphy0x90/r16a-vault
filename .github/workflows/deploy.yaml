@@ -182,7 +182,8 @@ jobs:
             - name: Build images
               run: |
                   docker build -t "$REGISTRY/r16a-vault-backend:$GITHUB_SHA" -t "$REGISTRY/r16a-vault-backend:latest" backend
-                  docker build -t "$REGISTRY/r16a-vault-web:$GITHUB_SHA" -t "$REGISTRY/r16a-vault-web:latest" -f web/Dockerfile .
+                  docker build --build-arg APK_REFRESH="$GITHUB_SHA" \
+                      -t "$REGISTRY/r16a-vault-web:$GITHUB_SHA" -t "$REGISTRY/r16a-vault-web:latest" -f web/Dockerfile .
 
             # Scanned before pushing, so a vulnerable image never reaches the registry.
             - name: Trivy scan backend image
