@@ -105,7 +105,13 @@ type CopyTarget = 'username' | 'password' | 'code';
                 Show code
               </button>
             </div>
-            <div class="actions"></div>
+            <div class="actions">
+              <app-copy-button
+                label="Copy one time code"
+                [copied]="copied() === 'code'"
+                (copyRequest)="copyCode()"
+              />
+            </div>
           }
         </div>
       }
@@ -329,8 +335,19 @@ export class CredentialDetails {
     this.totpTimer = setTimeout(() => this.hideTotp(), TOTP_VISIBLE_MS);
   }
 
+  /** Works while the code is hidden too, by computing it from the secret without showing it. */
   protected async copyCode(): Promise<void> {
-    if (await this.clipboard.copy(this.code(), 'Code')) this.flashCopied('code');
+    let code = this.code();
+    if (!this.totp()) {
+      const secret = await this.withSecret();
+      const config = secret?.mfaSecret ? parseTotp(secret.mfaSecret) : null;
+      if (!config) {
+        if (secret) this.error.set('The stored one time code secret is not valid.');
+        return;
+      }
+      code = totpCode(config, Date.now());
+    }
+    if (await this.clipboard.copy(code, 'Code')) this.flashCopied('code');
   }
 
   protected hideTotp(): void {

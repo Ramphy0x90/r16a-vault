@@ -1,6 +1,8 @@
 import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed, type ComponentFixture } from '@angular/core/testing';
 
+import { parseTotp, totpCode } from '@zaltys/vault-core';
+
 import { ClipboardService } from '../core/clipboard/clipboard.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
 import { CredentialDetails, REVEAL_MS } from './credential-details';
@@ -104,6 +106,16 @@ describe('CredentialDetails', () => {
     expect(el().textContent).toContain('1 seconds remaining');
     button('Hide one time code').click();
     await settle();
+    expect(el().textContent).not.toMatch(/\d{3} \d{3}/);
+  });
+
+  it('copies the one time code while it stays hidden', async () => {
+    vi.setSystemTime(59_000);
+    button('Copy one time code').click();
+    await settle();
+    const config = parseTotp(SECRET.mfaSecret);
+    if (!config) throw new Error('fixture secret must parse');
+    expect(copy).toHaveBeenCalledWith(totpCode(config, 59_000), 'Code');
     expect(el().textContent).not.toMatch(/\d{3} \d{3}/);
   });
 });

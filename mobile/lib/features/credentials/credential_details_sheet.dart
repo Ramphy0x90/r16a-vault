@@ -105,6 +105,19 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
     _totpTimer = Timer(totpVisibleDuration, _hideTotp);
   }
 
+  /// Copies the current code without showing it, the same way the password copies while masked.
+  Future<void> _copyHiddenTotp() async {
+    final s = await _secret();
+    final config = s?.mfaSecret == null ? null : parseTotp(s!.mfaSecret!);
+    if (!mounted) return;
+    if (config == null) {
+      if (s != null) setState(() => _error = 'The stored one time code secret is not valid.');
+      return;
+    }
+    await ref.read(clipboardServiceProvider).copy(totpCode(config, DateTime.now().millisecondsSinceEpoch));
+    _toast('Code copied. The clipboard will be cleared in 30 seconds.');
+  }
+
   void _hideTotp() {
     _ticker?.cancel();
     _totpTimer?.cancel();
@@ -195,13 +208,20 @@ class _CredentialDetailsSheetState extends ConsumerState<CredentialDetailsSheet>
             ),
             if (meta.hasTotp)
               totp == null
-                  ? Align(
-                      alignment: Alignment.centerLeft,
-                      child: OutlinedButton.icon(
-                        onPressed: _busy ? null : _showTotp,
-                        icon: const TIcon(tabler.ClockHour4()),
-                        label: const Text('Show one time code'),
-                      ),
+                  ? Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _busy ? null : _showTotp,
+                          icon: const TIcon(tabler.ClockHour4()),
+                          label: const Text('Show one time code'),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          tooltip: 'Copy one time code',
+                          icon: const TIcon(tabler.Copy()),
+                          onPressed: _busy ? null : _copyHiddenTotp,
+                        ),
+                      ],
                     )
                   : TotpView(
                       code: totpCode(totp, _now),
