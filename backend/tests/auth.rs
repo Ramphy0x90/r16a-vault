@@ -184,6 +184,20 @@ async fn throttle_backs_off_and_is_keyed_by_hmac(db: PgPool) {
     for _ in 0..5 {
         assert_eq!(app.login("grace", &[0u8; 32]).await.status, StatusCode::UNAUTHORIZED);
     }
+    let window: f64 =
+        sqlx::query_scalar("select max(extract(epoch from next_allowed_at - updated_at))::float8 from login_throttle")
+            .fetch_one(&db)
+            .await
+            .unwrap();
+    assert_eq!(
+        window, 1.0,
+        "the fifth failure from one network opens a one second backoff"
+    );
+    assert_eq!(
+        app.hold_backoff().await,
+        1,
+        "only the source bucket backs off this early"
+    );
     let blocked = app.login("grace", &u.auth_key).await;
     assert_eq!(blocked.status, StatusCode::TOO_MANY_REQUESTS);
     assert!(blocked.headers.get(header::RETRY_AFTER).is_some());
@@ -192,6 +206,7 @@ async fn throttle_backs_off_and_is_keyed_by_hmac(db: PgPool) {
     for _ in 0..5 {
         app.login("phantom", &[0u8; 32]).await;
     }
+    assert_eq!(app.hold_backoff().await, 2, "grace's window and now phantom's");
     assert_eq!(
         app.login("phantom", &[0u8; 32]).await.status,
         StatusCode::TOO_MANY_REQUESTS
@@ -639,6 +654,10 @@ async fn username_spraying_does_not_lock_out_the_owner(db: PgPool) {
     for _ in 0..6 {
         app.send(attempt("198.51.100.66", [0u8; 32])).await;
     }
+    assert!(
+        app.hold_backoff().await >= 1,
+        "the attacker's network bucket backed off"
+    );
     assert_eq!(
         app.send(attempt("198.51.100.66", u.auth_key)).await.status,
         StatusCode::TOO_MANY_REQUESTS,

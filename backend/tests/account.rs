@@ -139,6 +139,7 @@ async fn sensitive_operations_are_throttled_per_session_not_per_login(db: PgPool
             .await;
         assert_eq!(r.status, StatusCode::UNAUTHORIZED);
     }
+    assert_eq!(app.hold_backoff().await, 1, "the session bucket backed off");
     let blocked = app
         .call("DELETE", "/api/v1/me", &t, Some(json!({"authKey": b64(&u.auth_key)})))
         .await;

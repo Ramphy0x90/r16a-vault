@@ -85,6 +85,22 @@ impl TestApp {
         Self { router, db }
     }
 
+    /// Keeps every backoff window the server has opened closed for an hour, and returns how many
+    /// there were. The first windows last one or two seconds, and a loaded CI runner can spend
+    /// that long on the Argon2 check of a single attempt, so a test that wants to see a refusal
+    /// must not race the clock. Buckets without a delay are left alone, so a test still proves
+    /// that the server chose to back off.
+    pub async fn hold_backoff(&self) -> u64 {
+        sqlx::query(
+            "update login_throttle set next_allowed_at = now() + interval '1 hour'
+             where next_allowed_at > updated_at",
+        )
+        .execute(&self.db)
+        .await
+        .expect("hold backoff")
+        .rows_affected()
+    }
+
     pub async fn call(&self, method: &str, path: &str, auth: &Auth, body: Option<Value>) -> Resp {
         let mut b = Request::builder()
             .method(method)

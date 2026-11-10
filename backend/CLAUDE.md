@@ -56,5 +56,6 @@ Two layers, SPEC 4.7. `http/rate_limit.rs` is an in-memory per-IP GCRA limiter p
 - Editing an applied migration changes its checksum, and every database that already ran it refuses to start. Production had not applied `0001` when `uuidv7()` was replaced, and the dev DB checksum was patched by hand. Add a new migration instead.
 - `uuidv7()` exists only from PostgreSQL 18. The shared cluster runs 15 and CI tests on `postgres:15`. Dev compose still uses 18, so dev alone will not catch this.
 - `backend/.env.example` sets `SQLX_OFFLINE=true`, which the query macros also read. Override with `SQLX_OFFLINE=false` when running `cargo sqlx prepare`.
+- A test that expects a throttle refusal (429) must call `app.hold_backoff()` after its failed attempts. The first backoff windows last one or two seconds, and a loaded CI runner can spend that long on one attempt's Argon2 check, so the window reopens before the next request.
 - `parallel_attempts_cannot_share_one_window` is timing sensitive. It allows one extra pass per elapsed backoff window, because slow CI runners let a window expire mid-burst.
 - The `migrate` command does not load the full server config, so it fails only on the database URL. Its errors carry no URL or password.
