@@ -53,7 +53,7 @@ type CopyTarget = 'username' | 'password' | 'code';
         }
       </div>
       <button type="button" class="btn btn-danger-ghost btn-sm" (click)="confirming.set(true)">
-        <app-icon name="trash" [size]="15" /> Delete
+        Delete
       </button>
     </header>
 
@@ -102,7 +102,7 @@ type CopyTarget = 'username' | 'password' | 'code';
                 (click)="showTotp()"
                 [disabled]="busy()"
               >
-                <app-icon name="clock-hour-4" [size]="15" /> Show code
+                Show code
               </button>
             </div>
             <div class="actions"></div>
@@ -125,7 +125,6 @@ type CopyTarget = 'username' | 'password' | 'code';
     }
 
     <p class="footnote">
-      <app-icon name="shield-lock" [size]="14" />
       Encrypted on this device. Secrets are decrypted only while shown and hidden again after 30
       seconds.
     </p>
@@ -217,9 +216,6 @@ type CopyTarget = 'username' | 'password' | 'code';
       justify-content: flex-end;
     }
     .footnote {
-      display: flex;
-      align-items: center;
-      gap: 6px;
       font-size: 12px;
       color: var(--color-text-muted);
     }

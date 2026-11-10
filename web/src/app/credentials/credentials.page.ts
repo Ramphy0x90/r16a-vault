@@ -34,14 +34,11 @@ const NARROW = '(max-width: 960px)';
     @if (store.state() === 'ready' && store.entries().length === 0) {
       <div class="empty-wrap">
         <div class="empty">
-          <span class="empty-icon"><app-icon name="key" [size]="22" /></span>
           <h2>Your vault is empty</h2>
           <p class="muted">
             Add your first login. It is encrypted on this device before it is saved.
           </p>
-          <button type="button" class="btn btn-primary" (click)="openAdd()">
-            <app-icon name="plus" [size]="16" /> Add credential
-          </button>
+          <button type="button" class="btn btn-primary" (click)="openAdd()">Add credential</button>
         </div>
       </div>
     } @else {
@@ -55,7 +52,7 @@ const NARROW = '(max-width: 960px)';
               }
             </div>
             <button type="button" class="btn btn-primary btn-sm" (click)="openAdd()">
-              <app-icon name="plus" [size]="15" /> Add credential
+              Add credential
             </button>
           </header>
 
@@ -125,7 +122,6 @@ const NARROW = '(max-width: 960px)';
             }
           } @else {
             <div class="placeholder">
-              <app-icon name="shield-lock" [size]="28" [stroke]="1.5" />
               <p>Select a credential to see its details</p>
               <p class="keys"><kbd>/</kbd> search <kbd>↑</kbd><kbd>↓</kbd> move</p>
             </div>
@@ -252,18 +248,6 @@ const NARROW = '(max-width: 960px)';
       gap: 10px;
       max-width: 340px;
       text-align: center;
-    }
-    .empty-icon {
-      display: grid;
-      place-items: center;
-      width: 48px;
-      height: 48px;
-      margin-bottom: 6px;
-      border-radius: 14px;
-      background: var(--color-surface);
-      border: 1px solid var(--color-border-subtle);
-      box-shadow: var(--shadow-sm);
-      color: var(--color-accent);
     }
     .empty p {
       margin-bottom: 10px;

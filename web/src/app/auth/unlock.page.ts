@@ -22,7 +22,6 @@ import { PasswordInput } from './password-input';
       <div class="who">
         <app-avatar [name]="store.username() ?? '?'" [size]="28" />
         <span class="name">{{ store.username() }}</span>
-        <app-icon class="lock" name="lock" [size]="14" />
       </div>
       <form class="stack" [formGroup]="form" (ngSubmit)="submit()" novalidate>
         <!-- Lets password managers associate the master password with the right account. -->
@@ -78,9 +77,6 @@ import { PasswordInput } from './password-input';
       font-weight: 500;
       overflow: hidden;
       text-overflow: ellipsis;
-    }
-    .lock {
-      color: var(--color-text-muted);
     }
     .linkish {
       border: 0;

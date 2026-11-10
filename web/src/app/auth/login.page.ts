@@ -76,7 +76,7 @@ const OIDC_ERRORS: Record<string, string> = {
       @if (oidcName()) {
         <div class="divider">or</div>
         <a class="btn btn-secondary btn-block" href="/api/v1/auth/oidc/start?client=web">
-          <app-icon name="fingerprint" [size]="16" /> Continue with {{ oidcName() }}
+          Continue with {{ oidcName() }}
         </a>
       }
       @if (registrationEnabled()) {

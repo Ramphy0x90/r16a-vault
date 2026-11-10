@@ -4,7 +4,6 @@ import { messageFor } from '../core/api/api-error';
 import { ApiService } from '../core/api/api.service';
 import type { SessionDto } from '../core/api/api.types';
 import { ToastService } from '../core/ui/toast.service';
-import { Icon } from '../shared/icon';
 import { describeUserAgent, relativeTime } from './user-agent';
 
 interface SessionRow {
@@ -23,7 +22,6 @@ interface SessionRow {
 @Component({
   selector: 'app-sessions-panel',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Icon],
   template: `
     @switch (state()) {
       @case ('loading') {
@@ -41,9 +39,6 @@ interface SessionRow {
         <ul class="list" aria-label="Active sessions">
           @for (s of rows(); track s.id) {
             <li class="item">
-              <span class="device"
-                ><app-icon [name]="s.mobile ? 'fingerprint' : 'device-desktop'" [size]="18"
-              /></span>
               <span class="text">
                 <span class="name">
                   {{ s.name }}
@@ -66,7 +61,7 @@ interface SessionRow {
                   [attr.aria-label]="'Sign out ' + s.name"
                   (click)="revoke(s)"
                 >
-                  <app-icon name="logout" [size]="15" /> Sign out
+                  Sign out
                 </button>
               }
             </li>
@@ -90,15 +85,6 @@ interface SessionRow {
     }
     .item + .item {
       border-top: 1px solid var(--color-border-subtle);
-    }
-    .device {
-      display: grid;
-      place-items: center;
-      width: 34px;
-      height: 34px;
-      border-radius: 9px;
-      background: var(--color-surface-2);
-      color: var(--color-text-muted);
     }
     .text {
       display: flex;

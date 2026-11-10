@@ -11,7 +11,7 @@ import { SessionService } from '../core/session/session.service';
 import { ThemeService, type ThemeChoice } from '../core/theme/theme.service';
 import { ToastService } from '../core/ui/toast.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
-import { Icon, type IconName } from '../shared/icon';
+import { Icon } from '../shared/icon';
 import { SessionsPanel } from './sessions-panel';
 
 @Component({
@@ -43,7 +43,6 @@ import { SessionsPanel } from './sessions-panel';
                     [checked]="theme.choice() === t.value"
                     (change)="theme.set(t.value)"
                   />
-                  <app-icon [name]="t.icon" [size]="15" />
                   <span>{{ t.label }}</span>
                 </label>
               }
@@ -155,7 +154,7 @@ import { SessionsPanel } from './sessions-panel';
               />
             </div>
             <button class="btn btn-secondary" type="submit" [disabled]="busy()">
-              <app-icon name="devices" [size]="16" /> Sign out of all sessions
+              Sign out of all sessions
             </button>
           </div>
           @if (allError()) {
@@ -252,7 +251,7 @@ import { SessionsPanel } from './sessions-panel';
           }
           <div class="form-foot">
             <button class="btn btn-danger" type="submit" [disabled]="busy() || !canDelete()">
-              <app-icon name="trash" [size]="16" /> Delete my account
+              Delete my account
             </button>
           </div>
         </form>
@@ -437,10 +436,10 @@ export class SettingsPage {
 
   protected readonly min = MIN_MASTER_PASSWORD;
   protected readonly lockChoices = AUTO_LOCK_CHOICES;
-  protected readonly themes: { value: ThemeChoice; label: string; icon: IconName }[] = [
-    { value: 'system', label: 'System', icon: 'device-desktop' },
-    { value: 'light', label: 'Light', icon: 'sun' },
-    { value: 'dark', label: 'Dark', icon: 'moon' },
+  protected readonly themes: { value: ThemeChoice; label: string }[] = [
+    { value: 'system', label: 'System' },
+    { value: 'light', label: 'Light' },
+    { value: 'dark', label: 'Dark' },
   ];
 
   protected readonly busy = signal(false);

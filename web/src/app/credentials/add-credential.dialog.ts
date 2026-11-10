@@ -165,7 +165,7 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
                 (click)="useGenerated()"
                 [disabled]="!gen.value()"
               >
-                <app-icon name="check" [size]="15" /> Use this password
+                Use this password
               </button>
             </div>
           </div>
@@ -194,7 +194,7 @@ function validTotp(c: AbstractControl<string>): ValidationErrors | null {
             >
           } @else if (preview()) {
             <span id="cred-totp-hint" class="hint preview">
-              <app-icon name="circle-check" [size]="14" /> Current code
+              Current code
               <strong class="mono tabular">{{ preview() }}</strong
               >, check it matches your authenticator.
             </span>

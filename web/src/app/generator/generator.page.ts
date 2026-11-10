@@ -3,7 +3,6 @@ import { Router } from '@angular/router';
 
 import { ClipboardService } from '../core/clipboard/clipboard.service';
 import { CopyButton } from '../credentials/copy-button';
-import { Icon } from '../shared/icon';
 import { GeneratedHandoff } from './generated-handoff';
 import { GeneratorPanel } from './generator-panel';
 import { GeneratorStore } from './generator.store';
@@ -11,7 +10,7 @@ import { GeneratorStore } from './generator.store';
 @Component({
   selector: 'app-generator-page',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [GeneratorPanel, Icon, CopyButton],
+  imports: [GeneratorPanel, CopyButton],
   providers: [GeneratorStore],
   template: `
     <div class="page">
@@ -57,7 +56,7 @@ import { GeneratorStore } from './generator.store';
           (click)="useInNew()"
           [disabled]="!gen.value()"
         >
-          <app-icon name="plus" [size]="16" /> Use in a new credential
+          Use in a new credential
         </button>
       </div>
     </div>

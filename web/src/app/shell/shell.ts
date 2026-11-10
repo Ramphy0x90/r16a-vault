@@ -91,7 +91,6 @@ interface NavItem {
       >
         <app-icon name="menu-2" [size]="20" />
       </button>
-      <ng-container [ngTemplateOutlet]="brand" />
       <button
         type="button"
         class="icon-btn"

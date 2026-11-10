@@ -81,14 +81,14 @@ const STRENGTH_LEVEL: Record<Strength, number> = { weak: 1, fair: 2, strong: 3, 
         [attr.aria-pressed]="mode() === 'random'"
         (click)="modeChange.emit('random')"
       >
-        <app-icon name="asterisk" [size]="15" /> Password
+        Password
       </button>
       <button
         type="button"
         [attr.aria-pressed]="mode() === 'passphrase'"
         (click)="modeChange.emit('passphrase')"
       >
-        <app-icon name="dice-5" [size]="15" /> Passphrase
+        Passphrase
       </button>
     </div>
 
