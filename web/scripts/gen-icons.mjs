@@ -24,7 +24,6 @@ const ICONS = [
   'refresh',
   'search',
   'settings',
-  'shield-lock',
   'wand',
   'x',
 ];

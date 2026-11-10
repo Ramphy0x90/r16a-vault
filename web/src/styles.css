@@ -117,8 +117,6 @@
   --color-accent-soft-text: hsl(161 84% 22%);
   --color-nav-active: var(--color-accent-soft);
   --color-nav-active-text: var(--color-accent-soft-text);
-  --color-mark-bg: var(--color-primary);
-  --color-mark-fg: hsl(0 0% 100%);
   --color-danger: var(--danger-600);
   --color-danger-soft: var(--danger-50);
   --color-on-danger: hsl(0 0% 100%);
@@ -164,8 +162,6 @@
   --color-chrome: var(--color-bg);
   --color-nav-active: var(--color-surface-3);
   --color-nav-active-text: var(--color-text);
-  --color-mark-bg: hsl(var(--neutral-h) var(--neutral-s) 95%);
-  --color-mark-fg: var(--brand-600);
   --shadow-xs: none;
   --shadow-sm: none;
   --shadow-lg:
@@ -200,8 +196,6 @@
     --color-chrome: var(--color-bg);
     --color-nav-active: var(--color-surface-3);
     --color-nav-active-text: var(--color-text);
-    --color-mark-bg: hsl(var(--neutral-h) var(--neutral-s) 95%);
-    --color-mark-fg: var(--brand-600);
     --shadow-xs: none;
     --shadow-sm: none;
     --shadow-lg:

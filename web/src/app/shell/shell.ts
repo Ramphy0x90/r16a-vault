@@ -39,10 +39,7 @@ interface NavItem {
     <a class="skip" href="#main">Skip to content</a>
 
     <ng-template #brand>
-      <a routerLink="/vault" class="brand" aria-label="Zaltys home">
-        <span class="mark"><app-icon name="shield-lock" [size]="16" [stroke]="2" /></span>
-        <span>Zaltys</span>
-      </a>
+      <a routerLink="/vault" class="brand" aria-label="Zaltys home"> Zaltys </a>
     </ng-template>
 
     <ng-template #navigation>
@@ -161,21 +158,12 @@ interface NavItem {
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
       padding: 4px 8px;
       color: var(--color-text);
-      font-weight: 600;
-      letter-spacing: -0.01em;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
       text-decoration: none;
-    }
-    .mark {
-      display: inline-grid;
-      place-items: center;
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
-      background: var(--color-mark-bg);
-      color: var(--color-mark-fg);
     }
     nav {
       display: flex;

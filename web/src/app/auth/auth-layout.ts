@@ -1,19 +1,13 @@
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
-import { Icon } from '../shared/icon';
-
 /** Presentational frame shared by the sign in, register and unlock pages. */
 @Component({
   selector: 'app-auth-layout',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [Icon],
   template: `
     <main class="wrap">
       <div class="column">
-        <div class="brand">
-          <span class="mark"><app-icon name="shield-lock" [size]="18" [stroke]="2" /></span>
-          <span>Zaltys</span>
-        </div>
+        <div class="brand">Zaltys</div>
         <section class="card panel" aria-labelledby="auth-title">
           <header>
             <h1 id="auth-title">{{ heading() }}</h1>
@@ -59,18 +53,9 @@ import { Icon } from '../shared/icon';
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 600;
-      letter-spacing: -0.01em;
-    }
-    .mark {
-      display: inline-grid;
-      place-items: center;
-      width: 30px;
-      height: 30px;
-      border-radius: 8px;
-      background: var(--color-mark-bg);
-      color: var(--color-mark-fg);
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
     .panel {
       display: flex;

@@ -25,21 +25,10 @@ class AuthScaffold extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: TIcon(const tabler.ShieldLock(), color: theme.colorScheme.onPrimary, size: 20),
-                      ),
-                      const SizedBox(width: 8),
-                      Text('Zaltys', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                    ],
+                  Text(
+                    'Zaltys',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 24),
                   Card(
