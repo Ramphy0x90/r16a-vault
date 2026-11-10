@@ -27,6 +27,7 @@ The Zaltys browser extension, Manifest V3 for Chromium (121+) and Firefox (140+)
 - Chrome service workers reject dynamic `import()`. WXT bundles the background as an IIFE, so libsodium's lazy import is inlined. Check `background.js` after dependency changes.
 - Firefox popups cannot show `confirm()` or `alert()`, so questions are inline bars.
 - `permissions.request` only works directly inside a click or submit handler, on both browsers.
+- CI runs the Chromium tests inside `mcr.microsoft.com/playwright`, because the self-hosted runner lacks Chromium's system libraries (`libnspr4.so` errors). Bumping `@playwright/test` means updating that image tag and digest in `.github/workflows/deploy.yaml` too.
 - Firefox has no `offscreen` API and no `storage.session.setAccessLevel`. Firefox already keeps session storage away from content scripts.
 - The wordlist is copied from `shared/` by a build hook, so `browser.runtime.getURL` types don't list it.
 - A real browser gives a `width: 0` input a few pixels of padding and border. The fill function's minimum size of 8 px exists because of that; a jsdom-only test missed it.

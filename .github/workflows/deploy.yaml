@@ -98,11 +98,18 @@ jobs:
                   npm run build:firefox
                   npx --yes web-ext@10.8.0 lint --source-dir .output/firefox-mv3
 
+            # Chromium needs system libraries the self-hosted runner does not have, so the tests
+            # run in Playwright's own image instead of installing packages on the runner host.
+            # The image tag must match @playwright/test in extension/package.json, and the digest
+            # pins it like the actions above.
             - name: Chromium end to end tests
               working-directory: extension
               run: |
-                  npx playwright install chromium
-                  npm run test:e2e
+                  npx wxt build -b chrome
+                  docker run --rm --ipc=host --user "$(id -u):$(id -g)" -e HOME=/tmp -e CI=1 \
+                      -v "$GITHUB_WORKSPACE:/work" -w /work/extension \
+                      mcr.microsoft.com/playwright:v1.65.0-noble@sha256:6e3fb709361521eb27161606e6da6d2674e5e89fa16516cb37d6fdd91372273d \
+                      npx playwright test extension.spec.ts
 
     security:
         runs-on: self-hosted
