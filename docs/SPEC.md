@@ -527,17 +527,16 @@ HSL triplets in CSS custom properties. Scales 50 to 950 for brand (h 160, s 84%)
 | Pair | Ratio | Requirement |
 |---|---|---|
 | White text on brand-500 l 39% (the raw brand colour) | 2.59 | fails 4.5, never used for text |
-| Light. Text l 9% on bg l 98.5% | 17.25 | 4.5 |
-| Light. Muted l 42% on bg | 4.89 | 4.5 |
-| Light. Muted l 42% on surface-2 l 96.5% | 4.69 | 4.5 |
-| Light. White on primary ink l 11% | 16.86 | 4.5 |
-| Light. Link brand l 28% on white / on bg | 4.74 / 4.59 | 4.5 |
-| Light. Accent text brand l 26% on brand l 95% | 5.04 | 4.5 |
-| Light. Symbol on surface-2 | 6.75 | 4.5 |
-| Light. Input border l 54% on white | 3.30 | 3.0 UI |
-| Light. Focus ring brand l 33% on white | 3.55 | 3.0 UI |
+| Light. Text h160 s14 l10 on bg h160 s30 l97 | 16.21 | 4.5 |
+| Light. Muted h160 s10 l38 on bg / surface-2 / sidebar / surface-3 | 5.40 / 5.14 / 5.21 / 4.74 | 4.5 |
+| Light. White on emerald primary l 26% / hover l 21% | 5.34 / 7.33 | 4.5 |
+| Light. Link emerald l 26% on white / on bg | 5.34 / 5.05 | 4.5 |
+| Light. Accent text l 22% on accent soft l 92% (also the active nav item) | 6.10 | 4.5 |
+| Light. Symbol on surface-2 | 6.55 | 4.5 |
+| Light. Input border l 52% on white | 3.39 | 3.0 UI |
+| Light. Focus ring emerald l 30% on white / on bg | 4.20 / 3.98 | 3.0 UI |
 | Light. Danger l 45% on white | 5.81 | 4.5 |
-| Light. Warning l 30% on bg | 5.23 | 4.5 |
+| Light. Warning l 30% on bg | 5.11 | 4.5 |
 | Dark. Text l 95% on bg l 6% | 17.12 | 4.5 |
 | Dark. Muted l 64% on surface l 9% / surface-2 | 7.33 / 6.63 | 4.5 |
 | Dark. Primary text l 8% on l 95% | 16.40 | 4.5 |

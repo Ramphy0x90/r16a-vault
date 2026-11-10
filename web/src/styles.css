@@ -99,28 +99,35 @@
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
-  --color-bg: var(--neutral-50);
+  /* Light carries a faint mint tint and an emerald primary, so the brand shows beyond small
+     icons. Every pairing below is listed in SPEC 10.2. */
+  --color-bg: hsl(160 30% 97%);
   --color-surface: hsl(0 0% 100%);
-  --color-surface-2: var(--neutral-100);
-  --color-surface-3: var(--neutral-200);
-  --color-text: var(--neutral-900);
-  --color-text-muted: var(--neutral-600);
-  --color-primary: hsl(var(--neutral-h) var(--neutral-s) 11%);
-  --color-primary-hover: hsl(var(--neutral-h) var(--neutral-s) 22%);
+  --color-surface-2: hsl(160 26% 94.5%);
+  --color-surface-3: hsl(160 24% 90.5%);
+  --color-chrome: hsl(160 32% 95%);
+  --color-text: hsl(160 14% 10%);
+  --color-text-muted: hsl(160 10% 38%);
+  --color-primary: hsl(161 84% 26%);
+  --color-primary-hover: hsl(161 84% 21%);
   --color-on-primary: hsl(0 0% 100%);
-  --color-link: hsl(var(--brand-h) var(--brand-s) 28%);
+  --color-link: hsl(161 84% 26%);
   --color-accent: var(--brand-500);
-  --color-accent-soft: hsl(var(--brand-h) var(--brand-s) 95%);
-  --color-accent-soft-text: var(--brand-700);
+  --color-accent-soft: hsl(160 60% 92%);
+  --color-accent-soft-text: hsl(161 84% 22%);
+  --color-nav-active: var(--color-accent-soft);
+  --color-nav-active-text: var(--color-accent-soft-text);
+  --color-mark-bg: var(--color-primary);
+  --color-mark-fg: hsl(0 0% 100%);
   --color-danger: var(--danger-600);
   --color-danger-soft: var(--danger-50);
   --color-on-danger: hsl(0 0% 100%);
   --color-warning-text: var(--warning-700);
   --color-warning-soft: var(--warning-50);
   --color-symbol: hsl(var(--symbol-h) 62% 50%);
-  --color-border: var(--neutral-500);
-  --color-border-subtle: var(--neutral-200);
-  --color-focus: var(--brand-600);
+  --color-border: hsl(160 10% 52%);
+  --color-border-subtle: hsl(160 20% 87%);
+  --color-focus: hsl(161 84% 30%);
   --shadow-xs: 0 1px 2px hsl(var(--neutral-h) 20% 10% / 0.05);
   --shadow-sm:
     0 1px 2px hsl(var(--neutral-h) 20% 10% / 0.04), 0 2px 8px hsl(var(--neutral-h) 20% 10% / 0.04);
@@ -154,6 +161,11 @@
   --color-border: hsl(var(--neutral-h) var(--neutral-s) 40%);
   --color-border-subtle: var(--neutral-800);
   --color-focus: hsl(var(--brand-h) var(--brand-s) 55%);
+  --color-chrome: var(--color-bg);
+  --color-nav-active: var(--color-surface-3);
+  --color-nav-active-text: var(--color-text);
+  --color-mark-bg: hsl(var(--neutral-h) var(--neutral-s) 95%);
+  --color-mark-fg: var(--brand-600);
   --shadow-xs: none;
   --shadow-sm: none;
   --shadow-lg:
@@ -185,6 +197,11 @@
     --color-border: hsl(var(--neutral-h) var(--neutral-s) 40%);
     --color-border-subtle: var(--neutral-800);
     --color-focus: hsl(var(--brand-h) var(--brand-s) 55%);
+    --color-chrome: var(--color-bg);
+    --color-nav-active: var(--color-surface-3);
+    --color-nav-active-text: var(--color-text);
+    --color-mark-bg: hsl(var(--neutral-h) var(--neutral-s) 95%);
+    --color-mark-fg: var(--brand-600);
     --shadow-xs: none;
     --shadow-sm: none;
     --shadow-lg:

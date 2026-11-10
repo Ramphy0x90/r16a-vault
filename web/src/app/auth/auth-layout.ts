@@ -69,11 +69,8 @@ import { Icon } from '../shared/icon';
       width: 30px;
       height: 30px;
       border-radius: 8px;
-      background: var(--color-primary);
-      color: hsl(var(--brand-h) var(--brand-s) 60%);
-    }
-    :host-context([data-theme='dark']) .mark {
-      color: var(--brand-600);
+      background: var(--color-mark-bg);
+      color: var(--color-mark-fg);
     }
     .panel {
       display: flex;

@@ -156,6 +156,7 @@ interface NavItem {
       gap: var(--space-4);
       padding: 14px 12px;
       border-right: 1px solid var(--color-border-subtle);
+      background: var(--color-chrome);
     }
     .brand {
       display: flex;
@@ -173,11 +174,8 @@ interface NavItem {
       width: 26px;
       height: 26px;
       border-radius: 7px;
-      background: var(--color-primary);
-      color: hsl(var(--brand-h) var(--brand-s) 60%);
-    }
-    :host-context([data-theme='dark']) .mark {
-      color: var(--brand-600);
+      background: var(--color-mark-bg);
+      color: var(--color-mark-fg);
     }
     nav {
       display: flex;
@@ -200,8 +198,8 @@ interface NavItem {
         color 150ms ease;
     }
     nav a.active {
-      color: var(--color-text);
-      background: var(--color-surface-3);
+      color: var(--color-nav-active-text);
+      background: var(--color-nav-active);
     }
     nav a.active app-icon {
       color: var(--color-accent);
