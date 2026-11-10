@@ -1,52 +1,37 @@
 import { Injectable } from '@angular/core';
 
-import { loadSodium, type Sodium } from './sodium';
+import { loadSodium, type Sodium } from '@zaltys/vault-core';
 import {
   CryptoError,
   DEFAULT_KDF,
   KEY_BYTES,
   SALT_BYTES,
   assertAcceptableKdf,
-  credentialAad,
-  encodeUtf8,
   fromBase64,
-  open,
   passwordBytes,
-  seal,
   splitMasterKey,
   stretch,
   toBase64,
   unwrapVaultKey,
   wrapVaultKey,
+  openMeta,
+  openSecret,
+  sealCredential,
+  type CredentialMeta,
+  type CredentialSecret,
   type KdfParams,
+  type KeyMaterial,
+  type SealedCredential,
   type Subkeys,
-} from './protocol';
+} from '@zaltys/vault-core';
 
-export interface CredentialMeta {
-  readonly name: string;
-  readonly url: string | null;
-  readonly username: string;
-  /** Lets the list offer a TOTP button without decrypting the secret blob. */
-  readonly hasTotp?: boolean;
-}
-
-export interface CredentialSecret {
-  readonly password: string;
-  readonly mfaSecret: string | null;
-}
-
-/** Everything the server needs to create or re-key an account. The vault key never leaves. */
-export interface KeyMaterial {
-  readonly authKey: string;
-  readonly salt: string;
-  readonly kdf: KdfParams;
-  readonly wrappedVaultKey: string;
-}
-
-export interface SealedCredential {
-  readonly meta: string;
-  readonly secret: string;
-}
+// The credential shapes live in packages/vault-core, re-exported so existing imports keep working.
+export type {
+  CredentialMeta,
+  CredentialSecret,
+  KeyMaterial,
+  SealedCredential,
+} from '@zaltys/vault-core';
 
 interface WorkerReply {
   readonly id: number;
@@ -123,61 +108,15 @@ export class VaultCryptoService {
     meta: CredentialMeta,
     secret: CredentialSecret,
   ): Promise<SealedCredential> {
-    const sodium = await loadSodium();
-    const metaPlain = encodeUtf8(JSON.stringify(meta));
-    const secretPlain = encodeUtf8(JSON.stringify(secret));
-    try {
-      return {
-        meta: toBase64(sodium, seal(sodium, vaultKey, metaPlain, credentialAad(id, 'meta'))),
-        secret: toBase64(sodium, seal(sodium, vaultKey, secretPlain, credentialAad(id, 'secret'))),
-      };
-    } finally {
-      sodium.memzero(metaPlain);
-      sodium.memzero(secretPlain);
-    }
+    return sealCredential(await loadSodium(), vaultKey, id, meta, secret);
   }
 
   async openMeta(vaultKey: Uint8Array, id: string, blobB64: string): Promise<CredentialMeta> {
-    const value = await this.openJson(vaultKey, id, 'meta', blobB64);
-    if (typeof value['name'] !== 'string' || typeof value['username'] !== 'string') {
-      throw new CryptoError('decrypt-failed');
-    }
-    return {
-      name: value['name'],
-      username: value['username'],
-      url: typeof value['url'] === 'string' ? value['url'] : null,
-      hasTotp: value['hasTotp'] === true,
-    };
+    return openMeta(await loadSodium(), vaultKey, id, blobB64);
   }
 
   async openSecret(vaultKey: Uint8Array, id: string, blobB64: string): Promise<CredentialSecret> {
-    const value = await this.openJson(vaultKey, id, 'secret', blobB64);
-    if (typeof value['password'] !== 'string') throw new CryptoError('decrypt-failed');
-    return {
-      password: value['password'],
-      mfaSecret: typeof value['mfaSecret'] === 'string' ? value['mfaSecret'] : null,
-    };
-  }
-
-  private async openJson(
-    vaultKey: Uint8Array,
-    id: string,
-    field: 'meta' | 'secret',
-    blobB64: string,
-  ): Promise<Record<string, unknown>> {
-    const sodium = await loadSodium();
-    const plain = open(sodium, vaultKey, fromBase64(sodium, blobB64), credentialAad(id, field));
-    try {
-      const parsed: unknown = JSON.parse(new TextDecoder().decode(plain));
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new CryptoError('decrypt-failed');
-      }
-      return parsed as Record<string, unknown>;
-    } catch (e) {
-      throw e instanceof CryptoError ? e : new CryptoError('decrypt-failed');
-    } finally {
-      sodium.memzero(plain);
-    }
+    return openSecret(await loadSodium(), vaultKey, id, blobB64);
   }
 
   private wipe(sodium: Sodium, keys: Subkeys): void {

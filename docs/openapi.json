@@ -199,7 +199,7 @@
           {
             "name": "client",
             "in": "path",
-            "description": "`web` or `mobile`.",
+            "description": "`web`, `mobile` or `extension`.",
             "required": true,
             "schema": {
               "type": [
@@ -211,7 +211,19 @@
           {
             "name": "challenge",
             "in": "path",
-            "description": "S256 challenge of a verifier held by the mobile app.",
+            "description": "S256 challenge of a verifier held by the mobile app or the extension.",
+            "required": true,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "redirect",
+            "in": "path",
+            "description": "The extension's `identity.getRedirectURL()`, which must be listed in\n`R16A_OIDC_EXTENSION_REDIRECTS`. Refused for the other clients.",
             "required": true,
             "schema": {
               "type": [
@@ -588,7 +600,8 @@
         "type": "string",
         "enum": [
           "web",
-          "mobile"
+          "mobile",
+          "extension"
         ]
       },
       "CreateCredentialRequest": {
@@ -884,6 +897,13 @@
           "lastSeenAt"
         ],
         "properties": {
+          "client": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`web`, `mobile` or `extension`. Null for sessions created before this was recorded."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"

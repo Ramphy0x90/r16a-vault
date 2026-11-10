@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture, hidden field trap</title>
+  </head>
+  <body>
+    <h1>Every field here is invisible, nothing must be filled</h1>
+    <form>
+      <input type="text" name="user" style="display: none" />
+      <input type="password" name="p1" style="width: 0; height: 0" />
+      <input type="password" name="p2" style="opacity: 0" />
+      <div style="visibility: hidden"><input type="password" name="p3" /></div>
+      <input type="password" name="p4" style="position: absolute; left: -9999px; top: -9999px" />
+      <div aria-hidden="true"><input type="password" name="p5" /></div>
+      <input
+        type="password"
+        name="p6"
+        style="width: 0; height: 0; padding: 1px; border: 1px solid"
+      />
+      <div style="height: 0; overflow: hidden"><input type="password" name="p7" /></div>
+    </form>
+  </body>
+</html>

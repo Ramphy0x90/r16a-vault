@@ -1,14 +1,23 @@
 # syntax=docker/dockerfile:1.7
-# Build context is the repository root, because the web build needs shared/.
+# Build context is the repository root, because the web build needs shared/ and the npm
+# workspace (root package.json and lockfile) that web shares with the other packages.
 
 # Base images are pinned by digest for reproducible builds. Refresh with
 #   docker buildx imagetools inspect <image:tag>
 FROM node:24-alpine@sha256:a34ab6d7f6f4813f4d0c5469d74685604b962fbdbf5793a7bc7b4998ecb867c8 AS build
+WORKDIR /repo
+# npm ci checks every workspace against the lockfile, so all workspace manifests come first.
+COPY package.json package-lock.json .prettierrc ./
+COPY web/package.json web/
+COPY packages/vault-core/package.json packages/vault-core/
+COPY packages/design-tokens/package.json packages/design-tokens/
+COPY extension/package.json extension/
+# Only web and the shared packages it uses. The extension's build tools stay out of the image.
+RUN npm ci --no-audit --no-fund --workspace web
+COPY shared shared
+COPY packages packages
+COPY web web
 WORKDIR /repo/web
-COPY web/package.json web/package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY shared /repo/shared
-COPY web ./
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.30-alpine@sha256:f5116ed4606f3eb015dd4a8e28cb9b351476dc0ad4bc6e9f93b19cec130cdf03

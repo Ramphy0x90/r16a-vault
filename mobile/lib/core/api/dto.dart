@@ -85,11 +85,15 @@ class SessionInfo {
       current = json['current'] == true,
       locked = json['state'] == 'pre_auth',
       userAgent = json['userAgent'] is String ? json['userAgent'] as String : null,
+      client = json['client'] is String ? json['client'] as String : null,
       lastSeenAt = DateTime.parse(_field<String>(json, 'lastSeenAt'));
 
   final String id;
   final bool current;
   final bool locked;
   final String? userAgent;
+
+  /// `web`, `mobile` or `extension`, null for sessions created before the server recorded it.
+  final String? client;
   final DateTime lastSeenAt;
 }

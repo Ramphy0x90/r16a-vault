@@ -42,6 +42,8 @@ pub struct SessionDto {
     pub state: String,
     /// As sent by the device, at most 256 characters. Clients turn it into a readable name.
     pub user_agent: Option<String>,
+    /// `web`, `mobile` or `extension`. Null for sessions created before this was recorded.
+    pub client: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     #[schema(value_type = String, format = DateTime)]
     pub created_at: OffsetDateTime,

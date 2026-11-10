@@ -522,3 +522,94 @@ async fn expired_flows_and_disabled_registration_are_refused(db: PgPool) {
     let r = callback(&closed, &code, &s.state, s.flow_cookie.as_deref()).await;
     assert_eq!(location(&r), format!("{ORIGIN}/login?oidc_error=registration-disabled"));
 }
+
+const EXT_REDIRECT: &str = "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/oidc";
+
+fn extension_app(db: PgPool, idp: &Idp) -> TestApp {
+    TestApp::new(
+        db,
+        &[
+            ("R16A_OIDC_ENABLED", "true"),
+            ("R16A_OIDC_ISSUER_URL", &idp.issuer),
+            ("R16A_OIDC_CLIENT_ID", CLIENT_ID),
+            ("R16A_OIDC_CLIENT_SECRET", "test-secret"),
+            ("R16A_OIDC_EXTENSION_REDIRECTS", EXT_REDIRECT),
+        ],
+    )
+}
+
+#[sqlx::test]
+async fn extension_redirects_must_be_listed_exactly(db: PgPool) {
+    let idp = spawn_idp().await;
+    let app = extension_app(db, &idp);
+    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(b"v"));
+    let status = |q: String| {
+        let app = &app;
+        async move {
+            app.call("GET", &format!("/api/v1/auth/oidc/start?{q}"), &Auth::None, None)
+                .await
+                .status
+        }
+    };
+    let enc = |s: &str| openidconnect::url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
+    for bad in [
+        "https://ponmlkjihgfedcbaponmlkjihgfedcba.chromiumapp.org/oidc",
+        "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/other",
+        "https://evil.example/oidc",
+    ] {
+        assert_eq!(
+            status(format!("client=extension&challenge={challenge}&redirect={}", enc(bad))).await,
+            StatusCode::BAD_REQUEST,
+            "{bad}"
+        );
+    }
+    assert_eq!(
+        status(format!("client=extension&challenge={challenge}")).await,
+        StatusCode::BAD_REQUEST,
+        "the extension must name its redirect"
+    );
+    assert_eq!(
+        status(format!("client=extension&redirect={}", enc(EXT_REDIRECT))).await,
+        StatusCode::BAD_REQUEST,
+        "the extension must send a challenge"
+    );
+    assert_eq!(
+        status(format!(
+            "client=mobile&challenge={challenge}&redirect={}",
+            enc(EXT_REDIRECT)
+        ))
+        .await,
+        StatusCode::BAD_REQUEST,
+        "other clients cannot choose a redirect"
+    );
+}
+
+#[sqlx::test]
+async fn extension_code_returns_to_its_redirect_and_needs_the_verifier(db: PgPool) {
+    let idp = spawn_idp().await;
+    let app = extension_app(db, &idp);
+    let verifier = URL_SAFE_NO_PAD.encode([9u8; 48]);
+    let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+    let redirect = openidconnect::url::form_urlencoded::byte_serialize(EXT_REDIRECT.as_bytes()).collect::<String>();
+    let s = start(
+        &app,
+        &format!("/api/v1/auth/oidc/start?client=extension&challenge={challenge}&redirect={redirect}"),
+    )
+    .await;
+    assert!(s.flow_cookie.is_none(), "no browser binding cookie for the extension");
+    let code = grant(&idp, &s, "ext-sub");
+    let loc = location(&callback(&app, &code, &s.state, None).await);
+    assert!(loc.starts_with(&format!("{EXT_REDIRECT}?code=")), "{loc}");
+    let one_time = query(&loc)["code"].clone();
+
+    let ok = app
+        .call(
+            "POST",
+            "/api/v1/auth/oidc/exchange",
+            &Auth::None,
+            Some(json!({"code": one_time, "verifier": verifier})),
+        )
+        .await;
+    assert_eq!(ok.status, StatusCode::OK, "{:?}", ok.body);
+    assert_eq!(ok.body["state"], "pending", "first sign in has no account yet");
+}

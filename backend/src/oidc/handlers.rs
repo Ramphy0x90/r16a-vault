@@ -23,10 +23,13 @@ use crate::{
 #[derive(Debug, Deserialize, IntoParams)]
 #[serde(deny_unknown_fields)]
 pub struct StartQuery {
-    /// `web` or `mobile`.
+    /// `web`, `mobile` or `extension`.
     client: Option<String>,
-    /// S256 challenge of a verifier held by the mobile app.
+    /// S256 challenge of a verifier held by the mobile app or the extension.
     challenge: Option<String>,
+    /// The extension's `identity.getRedirectURL()`, which must be listed in
+    /// `R16A_OIDC_EXTENSION_REDIRECTS`. Refused for the other clients.
+    redirect: Option<String>,
 }
 
 #[utoipa::path(get, path = "/api/v1/auth/oidc/start", tag = "oidc", params(StartQuery),
@@ -41,7 +44,7 @@ pub async fn start(
         None => ClientKind::Web,
         Some(c) => ClientKind::parse(c).ok_or(AppError::BadRequest("invalid-client"))?,
     };
-    let started = service::start(&state, client, q.challenge.as_deref()).await?;
+    let started = service::start(&state, client, q.challenge.as_deref(), q.redirect.as_deref()).await?;
     let mut res = Redirect::to(&started.redirect).into_response();
     if let Some(c) = started.browser_cookie {
         res.headers_mut()
@@ -87,11 +90,23 @@ pub async fn callback(
         .as_ref()
         .map(|o| o.mobile_redirect.clone())
         .unwrap_or_default();
-    let res = match (result.client, result.outcome) {
-        (ClientKind::Mobile, Ok(Outcome::Mobile { code })) => {
-            Redirect::to(&format!("{mobile}?code={code}")).into_response()
-        }
-        (ClientKind::Mobile, Err(slug)) => Redirect::to(&format!("{mobile}?error={slug}")).into_response(),
+    // An extension redirect was checked against the allowlist when the flow started. It is
+    // checked again here, so removing it from the config also stops flows already running.
+    let extension = result.app_redirect.filter(|r| {
+        state
+            .config
+            .oidc
+            .as_ref()
+            .is_some_and(|o| o.extension_redirects.contains(r))
+    });
+    let app = match result.client {
+        ClientKind::Mobile => Some(mobile),
+        ClientKind::Extension => extension,
+        ClientKind::Web => None,
+    };
+    let res = match (app, result.outcome) {
+        (Some(app), Ok(Outcome::App { code })) => Redirect::to(&format!("{app}?code={code}")).into_response(),
+        (Some(app), Err(slug)) => Redirect::to(&format!("{app}?error={slug}")).into_response(),
         (_, Ok(Outcome::WebPreAuth { session_token })) => {
             let mut r = Redirect::to(&format!("{public}/unlock")).into_response();
             r.headers_mut()
@@ -104,7 +119,7 @@ pub async fn callback(
                 .append(header::SET_COOKIE, cookies::set_pending(&state.config, &pending_token));
             r
         }
-        (_, Ok(Outcome::Mobile { .. })) => web_error("oidc-failed"),
+        (_, Ok(Outcome::App { .. })) => web_error("oidc-failed"),
         (_, Err(slug)) => web_error(slug),
     };
     Ok(with_flow_cleared(&state, res))

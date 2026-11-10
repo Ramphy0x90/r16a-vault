@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom, type Observable } from 'rxjs';
 
-import type { KdfParams } from '../crypto/protocol';
+import type { KdfParams } from '@zaltys/vault-core';
 import { ApiError } from './api-error';
 import type {
   AuthConfig,

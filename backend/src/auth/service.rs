@@ -118,7 +118,7 @@ pub async fn register(state: &AppState, req: &RegisterRequest, headers: &HeaderM
     )
     .await?
     .ok_or(AppError::Conflict("username-taken"))?;
-    let token = sessions::service::issue(state, &mut *tx, id, SessionState::Full, headers).await?;
+    let token = sessions::service::issue(state, &mut *tx, id, SessionState::Full, req.client, headers).await?;
     tx.commit().await?;
 
     let user = users::find_by_id(&state.db, id)
@@ -163,6 +163,7 @@ pub async fn login(
     ip: std::net::IpAddr,
     raw_username: &str,
     auth_key: &SecretB64,
+    client: ClientKind,
     headers: &HeaderMap,
 ) -> Result<Authenticated, AppError> {
     // Invalid names cannot belong to an account, so they get the generic failure too.
@@ -176,7 +177,7 @@ pub async fn login(
         let fresh = state.hash_auth_key(decode_auth_key(auth_key)?).await?;
         users::update_auth_hash(&state.db, user.id, &fresh).await?;
     }
-    let token = sessions::service::issue(state, &state.db, user.id, SessionState::Full, headers).await?;
+    let token = sessions::service::issue(state, &state.db, user.id, SessionState::Full, client, headers).await?;
     Ok(Authenticated { user, token })
 }
 
@@ -211,7 +212,7 @@ pub async fn require_fresh_proof(
 }
 
 pub fn token_for_body(client: ClientKind, token: &IssuedToken) -> Option<String> {
-    (client == ClientKind::Mobile).then(|| token.token.clone())
+    client.uses_bearer().then(|| token.token.clone())
 }
 
 /// Ends the session the request carries, if any. Always succeeds, so a client can reset its

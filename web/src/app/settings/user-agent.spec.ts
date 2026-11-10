@@ -1,6 +1,15 @@
 import { describeUserAgent, relativeTime } from './user-agent';
 
 describe('describeUserAgent', () => {
+  it('names extension sessions by the browser they run in', () => {
+    const firefox = 'Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0';
+    expect(describeUserAgent(firefox, 'extension')).toEqual({
+      name: 'Zaltys extension on Firefox',
+      mobile: false,
+    });
+    expect(describeUserAgent(null, 'extension').name).toBe('Zaltys extension');
+  });
+
   it('names common browsers and systems', () => {
     expect(
       describeUserAgent(

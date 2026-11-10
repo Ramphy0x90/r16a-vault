@@ -10,7 +10,7 @@ import {
   type PassphraseOptions,
   type RandomOptions,
   type Strength,
-} from './generator';
+} from '@zaltys/vault-core';
 import type { GeneratorMode } from './generator.store';
 
 const CLASS_LABELS: Record<CharClass, string> = {

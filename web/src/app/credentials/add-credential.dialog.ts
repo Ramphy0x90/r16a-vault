@@ -18,14 +18,14 @@ import {
 } from '@angular/forms';
 
 import { messageFor } from '../core/api/api-error';
-import { canonicalTotpSecret, groupCode, parseTotp, totpCode } from '../core/totp/totp';
+import { canonicalTotpSecret, groupCode, parseTotp, totpCode } from '@zaltys/vault-core';
 import { ToastService } from '../core/ui/toast.service';
 import { GeneratorPanel } from '../generator/generator-panel';
 import { GeneratorStore } from '../generator/generator.store';
 import { Dialog } from '../shared/dialog';
 import { Icon } from '../shared/icon';
 import { CredentialsStore } from './credentials.store';
-import { normaliseUrl } from './url';
+import { normaliseUrl } from '@zaltys/vault-core';
 
 function validUrl(c: AbstractControl<string>): ValidationErrors | null {
   return normaliseUrl(c.value) === undefined ? { url: true } : null;

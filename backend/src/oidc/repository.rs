@@ -10,6 +10,7 @@ pub struct FlowRow {
     pub client: String,
     pub browser_binding: Option<Vec<u8>>,
     pub mobile_challenge: Option<String>,
+    pub app_redirect: Option<String>,
     pub expires_at: OffsetDateTime,
 }
 
@@ -20,19 +21,21 @@ pub struct NewFlow<'a> {
     pub client: &'a str,
     pub browser_binding: Option<&'a [u8]>,
     pub mobile_challenge: Option<&'a str>,
+    pub app_redirect: Option<&'a str>,
     pub expires_at: OffsetDateTime,
 }
 
 pub async fn insert_flow(db: impl PgExecutor<'_>, f: &NewFlow<'_>) -> sqlx::Result<()> {
     sqlx::query!(
-        "insert into oidc_flows (state_hash, nonce, pkce_verifier, client, browser_binding, mobile_challenge, expires_at)
-         values ($1, $2, $3, $4, $5, $6, $7)",
+        "insert into oidc_flows (state_hash, nonce, pkce_verifier, client, browser_binding, mobile_challenge, app_redirect, expires_at)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)",
         f.state_hash,
         f.nonce,
         f.pkce_verifier,
         f.client,
         f.browser_binding,
         f.mobile_challenge,
+        f.app_redirect,
         f.expires_at
     )
     .execute(db)
@@ -45,7 +48,7 @@ pub async fn take_flow(db: impl PgExecutor<'_>, state_hash: &[u8]) -> sqlx::Resu
     sqlx::query_as!(
         FlowRow,
         "delete from oidc_flows where state_hash = $1
-         returning nonce, pkce_verifier, client, browser_binding, mobile_challenge, expires_at",
+         returning nonce, pkce_verifier, client, browser_binding, mobile_challenge, app_redirect, expires_at",
         state_hash
     )
     .fetch_optional(db)

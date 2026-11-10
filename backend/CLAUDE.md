@@ -31,11 +31,13 @@ The Zaltys API server. Rust 2024 (MSRV 1.94), axum 0.8, sqlx 0.9 on PostgreSQL 1
 
 **Refresh the sqlx cache.** `SQLX_OFFLINE=false DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/r16a cargo sqlx prepare -- --all-targets`. Check with `cargo sqlx prepare --check -- --all-targets`.
 
+**Client kinds.** `ClientKind` is `web` (cookie), or `mobile` and `extension` (bearer token in the body, one time OIDC codes). Use `ClientKind::uses_bearer` rather than matching on mobile. Sessions record their client in `sessions.client` (migration 0004).
+
 **Add a config value.** Parse it in `config/mod.rs` with a clear error naming the variable, never its value. Secrets go through `secret_bytes` (no default, length, placeholder and repetition checks). Document it in the README config table.
 
 ## Config
 
-Env vars are `R16A_*`. Required are `R16A_DATABASE_URL`, `R16A_PUBLIC_URL` and `R16A_PRELOGIN_SECRET`. `R16A_AUTH_PEPPER` is optional but must never change once accounts exist. The full table is in the README. `R16A_DEV_INSECURE_COOKIE=true` enables plain HTTP and the dev cookie name, and startup fails if it is set with an https public URL. Debug builds load `backend/.env` through dotenvy; release builds and containers read only the real environment.
+Env vars are `R16A_*`. Required are `R16A_DATABASE_URL`, `R16A_PUBLIC_URL` and `R16A_PRELOGIN_SECRET`. `R16A_EXTENSION_ORIGINS` optionally restricts which extension origins may sign in (empty accepts any well formed one, decision 029). `R16A_OIDC_EXTENSION_REDIRECTS` is an exact allowlist, empty by default. `R16A_AUTH_PEPPER` is optional but must never change once accounts exist. The full table is in the README. `R16A_DEV_INSECURE_COOKIE=true` enables plain HTTP and the dev cookie name, and startup fails if it is set with an https public URL. Debug builds load `backend/.env` through dotenvy; release builds and containers read only the real environment.
 
 ## Database roles and migrations
 

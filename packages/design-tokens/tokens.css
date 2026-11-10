@@ -1,0 +1,204 @@
+/*
+ * Zaltys design tokens, shared by the web app and the browser extension.
+ *
+ * Every colour is an HSL triplet and scales vary lightness only. Components consume the
+ * semantic tokens, which each theme remaps. Contrast ratios for every semantic pairing are
+ * listed in docs/SPEC.md section 10.2 and must be re measured when a lightness changes.
+ */
+:root {
+  --brand-h: 160;
+  --brand-s: 84%;
+  --neutral-h: 160;
+  --neutral-s: 6%;
+  --danger-h: 0;
+  --danger-s: 72%;
+  --warning-h: 38;
+  --warning-s: 92%;
+  --symbol-h: 232;
+
+  --brand-50: hsl(var(--brand-h) var(--brand-s) 96%);
+  --brand-100: hsl(var(--brand-h) var(--brand-s) 90%);
+  --brand-200: hsl(var(--brand-h) var(--brand-s) 80%);
+  --brand-300: hsl(var(--brand-h) var(--brand-s) 65%);
+  --brand-400: hsl(var(--brand-h) var(--brand-s) 50%);
+  --brand-500: hsl(var(--brand-h) var(--brand-s) 39%);
+  --brand-600: hsl(var(--brand-h) var(--brand-s) 33%);
+  --brand-700: hsl(var(--brand-h) var(--brand-s) 26%);
+  --brand-800: hsl(var(--brand-h) var(--brand-s) 20%);
+  --brand-900: hsl(var(--brand-h) var(--brand-s) 15%);
+  --brand-950: hsl(var(--brand-h) var(--brand-s) 10%);
+
+  --neutral-50: hsl(var(--neutral-h) var(--neutral-s) 98.5%);
+  --neutral-100: hsl(var(--neutral-h) var(--neutral-s) 96.5%);
+  --neutral-200: hsl(var(--neutral-h) var(--neutral-s) 91.5%);
+  --neutral-300: hsl(var(--neutral-h) var(--neutral-s) 82%);
+  --neutral-400: hsl(var(--neutral-h) var(--neutral-s) 64%);
+  --neutral-500: hsl(var(--neutral-h) var(--neutral-s) 54%);
+  --neutral-600: hsl(var(--neutral-h) var(--neutral-s) 42%);
+  --neutral-700: hsl(var(--neutral-h) var(--neutral-s) 30%);
+  --neutral-800: hsl(var(--neutral-h) var(--neutral-s) 16%);
+  --neutral-900: hsl(var(--neutral-h) var(--neutral-s) 9%);
+  --neutral-950: hsl(var(--neutral-h) var(--neutral-s) 6%);
+
+  --danger-50: hsl(var(--danger-h) var(--danger-s) 97%);
+  --danger-100: hsl(var(--danger-h) var(--danger-s) 93%);
+  --danger-200: hsl(var(--danger-h) var(--danger-s) 85%);
+  --danger-300: hsl(var(--danger-h) var(--danger-s) 74%);
+  --danger-400: hsl(var(--danger-h) var(--danger-s) 65%);
+  --danger-500: hsl(var(--danger-h) var(--danger-s) 52%);
+  --danger-600: hsl(var(--danger-h) var(--danger-s) 45%);
+  --danger-700: hsl(var(--danger-h) var(--danger-s) 37%);
+  --danger-800: hsl(var(--danger-h) var(--danger-s) 28%);
+  --danger-900: hsl(var(--danger-h) var(--danger-s) 20%);
+  --danger-950: hsl(var(--danger-h) var(--danger-s) 12%);
+
+  --warning-50: hsl(var(--warning-h) var(--warning-s) 96%);
+  --warning-100: hsl(var(--warning-h) var(--warning-s) 90%);
+  --warning-200: hsl(var(--warning-h) var(--warning-s) 80%);
+  --warning-300: hsl(var(--warning-h) var(--warning-s) 68%);
+  --warning-400: hsl(var(--warning-h) var(--warning-s) 60%);
+  --warning-500: hsl(var(--warning-h) var(--warning-s) 50%);
+  --warning-600: hsl(var(--warning-h) var(--warning-s) 40%);
+  --warning-700: hsl(var(--warning-h) var(--warning-s) 30%);
+  --warning-800: hsl(var(--warning-h) var(--warning-s) 22%);
+  --warning-900: hsl(var(--warning-h) var(--warning-s) 15%);
+  --warning-950: hsl(var(--warning-h) var(--warning-s) 9%);
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --control-h: 36px;
+  --control-h-sm: 30px;
+
+  /* Strong curves. Built in CSS easings are too soft to feel intentional. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Touch screens get 44px targets and 16px inputs, which also stops iOS from zooming. */
+@media (pointer: coarse) {
+  :root {
+    --control-h: 44px;
+    --control-h-sm: 40px;
+  }
+}
+
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  /* Light carries a faint mint tint and an emerald primary, so the brand shows beyond small
+     icons. Every pairing below is listed in SPEC 10.2. */
+  --color-bg: hsl(160 30% 97%);
+  --color-surface: hsl(0 0% 100%);
+  --color-surface-2: hsl(160 26% 94.5%);
+  --color-surface-3: hsl(160 24% 90.5%);
+  --color-chrome: hsl(160 32% 95%);
+  --color-text: hsl(160 14% 10%);
+  --color-text-muted: hsl(160 10% 38%);
+  --color-primary: hsl(161 84% 26%);
+  --color-primary-hover: hsl(161 84% 21%);
+  --color-on-primary: hsl(0 0% 100%);
+  --color-link: hsl(161 84% 26%);
+  --color-accent: var(--brand-500);
+  --color-accent-soft: hsl(160 60% 92%);
+  --color-accent-soft-text: hsl(161 84% 22%);
+  --color-nav-active: var(--color-accent-soft);
+  --color-nav-active-text: var(--color-accent-soft-text);
+  --color-danger: var(--danger-600);
+  --color-danger-soft: var(--danger-50);
+  --color-on-danger: hsl(0 0% 100%);
+  --color-warning-text: var(--warning-700);
+  --color-warning-soft: var(--warning-50);
+  --color-symbol: hsl(var(--symbol-h) 62% 50%);
+  --color-border: hsl(160 10% 52%);
+  --color-border-subtle: hsl(160 20% 87%);
+  --color-focus: hsl(161 84% 30%);
+  --shadow-xs: 0 1px 2px hsl(var(--neutral-h) 20% 10% / 0.05);
+  --shadow-sm:
+    0 1px 2px hsl(var(--neutral-h) 20% 10% / 0.04), 0 2px 8px hsl(var(--neutral-h) 20% 10% / 0.04);
+  --shadow-lg:
+    0 0 0 1px hsl(var(--neutral-h) 20% 10% / 0.06),
+    0 12px 32px -8px hsl(var(--neutral-h) 20% 10% / 0.18),
+    0 4px 12px -4px hsl(var(--neutral-h) 20% 10% / 0.08);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: var(--neutral-950);
+  --color-surface: var(--neutral-900);
+  --color-surface-2: hsl(var(--neutral-h) var(--neutral-s) 12.5%);
+  --color-surface-3: var(--neutral-800);
+  --color-text: hsl(var(--neutral-h) var(--neutral-s) 95%);
+  --color-text-muted: hsl(var(--neutral-h) var(--neutral-s) 64%);
+  --color-primary: hsl(var(--neutral-h) var(--neutral-s) 95%);
+  --color-primary-hover: hsl(var(--neutral-h) var(--neutral-s) 84%);
+  --color-on-primary: hsl(var(--neutral-h) var(--neutral-s) 8%);
+  --color-link: hsl(var(--brand-h) var(--brand-s) 58%);
+  --color-accent: var(--brand-400);
+  --color-accent-soft: hsl(var(--brand-h) 40% 14%);
+  --color-accent-soft-text: hsl(var(--brand-h) var(--brand-s) 60%);
+  --color-danger: var(--danger-400);
+  --color-danger-soft: hsl(var(--danger-h) 40% 13%);
+  --color-on-danger: var(--neutral-950);
+  --color-warning-text: var(--warning-400);
+  --color-warning-soft: hsl(var(--warning-h) 40% 11%);
+  --color-symbol: hsl(var(--symbol-h) 90% 76%);
+  --color-border: hsl(var(--neutral-h) var(--neutral-s) 40%);
+  --color-border-subtle: var(--neutral-800);
+  --color-focus: hsl(var(--brand-h) var(--brand-s) 55%);
+  --color-chrome: var(--color-bg);
+  --color-nav-active: var(--color-surface-3);
+  --color-nav-active-text: var(--color-text);
+  --shadow-xs: none;
+  --shadow-sm: none;
+  --shadow-lg:
+    0 0 0 1px hsl(var(--neutral-h) var(--neutral-s) 20%), 0 16px 40px -8px hsl(0 0% 0% / 0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --color-bg: var(--neutral-950);
+    --color-surface: var(--neutral-900);
+    --color-surface-2: hsl(var(--neutral-h) var(--neutral-s) 12.5%);
+    --color-surface-3: var(--neutral-800);
+    --color-text: hsl(var(--neutral-h) var(--neutral-s) 95%);
+    --color-text-muted: hsl(var(--neutral-h) var(--neutral-s) 64%);
+    --color-primary: hsl(var(--neutral-h) var(--neutral-s) 95%);
+    --color-primary-hover: hsl(var(--neutral-h) var(--neutral-s) 84%);
+    --color-on-primary: hsl(var(--neutral-h) var(--neutral-s) 8%);
+    --color-link: hsl(var(--brand-h) var(--brand-s) 58%);
+    --color-accent: var(--brand-400);
+    --color-accent-soft: hsl(var(--brand-h) 40% 14%);
+    --color-accent-soft-text: hsl(var(--brand-h) var(--brand-s) 60%);
+    --color-danger: var(--danger-400);
+    --color-danger-soft: hsl(var(--danger-h) 40% 13%);
+    --color-on-danger: var(--neutral-950);
+    --color-warning-text: var(--warning-400);
+    --color-warning-soft: hsl(var(--warning-h) 40% 11%);
+    --color-symbol: hsl(var(--symbol-h) 90% 76%);
+    --color-border: hsl(var(--neutral-h) var(--neutral-s) 40%);
+    --color-border-subtle: var(--neutral-800);
+    --color-focus: hsl(var(--brand-h) var(--brand-s) 55%);
+    --color-chrome: var(--color-bg);
+    --color-nav-active: var(--color-surface-3);
+    --color-nav-active-text: var(--color-text);
+    --shadow-xs: none;
+    --shadow-sm: none;
+    --shadow-lg:
+      0 0 0 1px hsl(var(--neutral-h) var(--neutral-s) 20%), 0 16px 40px -8px hsl(0 0% 0% / 0.6);
+  }
+}

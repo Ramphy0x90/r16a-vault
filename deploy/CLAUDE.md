@@ -26,7 +26,10 @@ How Zaltys runs outside a developer machine. `compose/` is for local and single-
 
 ## How images get built and deployed
 
-`.github/workflows/deploy.yaml` runs on push to `main`, except changes limited to `mobile/`, `docs/` or Markdown, on a self-hosted runner. Jobs `test-backend` (clippy and tests on a throwaway `postgres:15`), `test-web` and `security` (cargo deny, npm audit, OWASP Dependency-Check, Trivy filesystem scan) run in parallel. `build-and-deploy` then builds both images tagged with the commit SHA and `latest`, scans them with Trivy (HIGH and CRITICAL with a fix fail the run), pushes to `registry.r16a.cloud`, sets the SHA in the manifests, applies the three manifests by name and waits for both rollouts. Re-runs restart the deployments, since the image tag is unchanged. Third-party actions are pinned by commit SHA.
+The web image builds from the repo root workspace. `web/Dockerfile` copies every workspace manifest (`npm ci` checks them all against the lockfile) and installs with `--workspace web`, so the extension's build tools stay out of the image. A new workspace needs its `package.json` copied there too.
+
+
+`.github/workflows/deploy.yaml` runs on push to `main`, except changes limited to `mobile/`, `docs/` or Markdown, on a self-hosted runner. Jobs `test-backend` (clippy and tests on a throwaway `postgres:15`), `test-web` (shared packages and web), `test-extension` (does not gate the deploy) and `security` (cargo deny, npm audit, OWASP Dependency-Check, Trivy filesystem scan) run in parallel. `build-and-deploy` then builds both images tagged with the commit SHA and `latest`, scans them with Trivy (HIGH and CRITICAL with a fix fail the run), pushes to `registry.r16a.cloud`, sets the SHA in the manifests, applies the three manifests by name and waits for both rollouts. Re-runs restart the deployments, since the image tag is unchanged. Third-party actions are pinned by commit SHA.
 
 ## Gotchas
 

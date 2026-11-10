@@ -109,3 +109,69 @@ Consequences: No cross-origin surface. Serving the web app from another origin w
 Context: Browsers often refuse `clipboard.readText()`, so the client cannot tell whether the clipboard still holds its secret.
 Decision: After 30 s the clipboard is overwritten anyway, retried on focus, and cleared on lock. The toast says it will be cleared.
 Consequences: Secrets do not linger. Something the user copied later may be wiped.
+
+### 019 npm workspace and shared `vault-core` package
+2026-11-10 · accepted
+Context: The browser extension needs the same client crypto, TOTP, generator and URL rules as the web app. A second copy would drift, and two installs of libsodium would bloat both apps.
+Decision: The repo root is an npm workspace (`packages/*`, `web`, `extension`) with one lockfile. `packages/vault-core` holds the framework-free protocol, credential codec, TOTP, generator, URL normalisation and URL matching, tested against `shared/crypto-test-vectors.json`. Web keeps only its Angular wrappers.
+Consequences: One implementation for both clients, with web's dependency versions unchanged. Installs run from the root, `web/package-lock.json` is gone, and the web Dockerfile copies every workspace manifest and installs `--workspace web` only. The package is marked side-effect free, so web's initial bundle stays the same.
+
+### 020 Design tokens as a shared package
+2026-11-10 · accepted
+Context: The extension must look like the web app without copying its colour system.
+Decision: The token part of `web/src/styles.css` moved unchanged to `packages/design-tokens/tokens.css`, which both apps load.
+Consequences: One place to change colours and contrast. Component styles stay per app.
+
+### 021 WXT for the browser extension
+2026-11-10 · accepted
+Context: One codebase has to produce correct Manifest V3 builds for Chromium (service worker) and Firefox (event page), plus store zips and the Firefox sources zip.
+Decision: WXT 0.21.5 pinned exactly, auto imports off. A unit test asserts the generated permission set and CSP, so an upgrade cannot widen them silently (EXTENSION_SPEC 3.3).
+Consequences: Browser differences and packaging come for free. WXT is pre 1.0 and adds about 90 build-time packages. Nothing from it ships except a thin `browser` wrapper.
+
+### 022 Extension trust zones and the two-step fill
+2026-11-10 · accepted
+Context: Content scripts run inside hostile pages. Validating messages from them would still leave a channel from pages to the vault.
+Decision: There are no content scripts and no messages from pages. On a click, one self-contained function is injected into the top frame twice. A probe without secrets comes first. Then the background decides, and a fill function receives one username and password plus the origin the page must still be on. Only https pages are filled, with the localhost exception off by default. Hidden or tiny fields, frames, and changed origins are refused, and cross-site form actions need confirmation (EXTENSION_SPEC 6).
+Consequences: A compromised page can at most read what was filled into it. Same-origin iframes and inline field icons are left for later, and the inline icons would need a reviewed content-script channel.
+
+### 023 Vault key in `storage.session`, token in `storage.local`
+2026-11-10 · accepted
+Context: MV3 backgrounds unload when idle, so module variables cannot hold the key, and users expect a browser restart to ask only for the master password.
+Decision: The base64 vault key and its lock deadline live in `storage.session`, in memory and restricted to trusted contexts. The bearer token lives in `storage.local`, or in session storage when the user turns on "forget on close" (EXTENSION_SPEC 5).
+Consequences: Restart lands on Unlock. A copied browser profile yields a locked session token (the A9 position), which is revocable from the sessions list and expires with the server's session lifetime.
+
+### 024 CSRF accepts listed extension origins on cookie-less requests
+2026-11-10 · superseded by 029
+Context: Extension POSTs carry `chrome-extension://<id>` or `moz-extension://<per-install uuid>` as their Origin, which the CSRF layer rejected. The extension needs prelogin, login and register before it holds a token.
+Decision: `R16A_EXTENSION_ORIGINS` lists exact extension origins, for both browsers. A request passes the CSRF layer this way only if its origin is listed, it carries `X-R16a-Request: 1`, and it has no session cookie. No CORS headers are added.
+Consequences: Web cookie sessions keep their full protection. Each Firefox install must be listed by the operator, because the Firefox origin is random per install.
+
+### 025 Extension single sign-on through the identity API
+2026-11-10 · accepted
+Context: The extension cannot receive an App Link or a verified https link, but browsers offer a redirect URL that only the launching extension can receive.
+Decision: `client=extension` on `/auth/oidc/start` requires a PKCE challenge and a `redirect` equal to an entry of `R16A_OIDC_EXTENSION_REDIRECTS`. The redirect is stored with the flow and checked again at the callback. The one-time code exchange is the same as mobile's.
+Consequences: No website can capture the code, and an operator can revoke a redirect even while flows are running. Extension SSO is off until a redirect is configured.
+
+### 026 Sessions record their client kind
+2026-11-10 · accepted
+Context: Extension fetches cannot set their own User-Agent, so the session list could not name them.
+Decision: Migration `0004` adds `sessions.client` (`web`, `mobile`, `extension`, null for older rows). The session list API returns it, and web and mobile show "Zaltys extension on <browser>".
+Consequences: Users can recognise and revoke extension sessions. Older sessions still fall back to user agent parsing.
+
+### 027 No `clipboardRead`, unconditional clear after 30 seconds
+2026-11-10 · accepted (EXTENSION_SPEC Q4 option a)
+Context: Clearing only when the clipboard still holds our value needs `clipboardRead`, which shows a warning that the extension can read clipboard data.
+Decision: The extension doesn't request `clipboardRead`. The popup copies, and the background clears unconditionally 30 seconds later, through an offscreen document on Chromium and directly on Firefox.
+Consequences: Same trade-off as the web fallback (SPEC D14). Clearing is verified in Chromium; on Firefox it may be refused and is then retried on lock.
+
+### 028 Firefox minimum 140 instead of 128
+2026-11-10 · accepted, amends EXTENSION_SPEC Q5
+Context: New Firefox add-ons must declare `data_collection_permissions`, a key Firefox supports only from 140 (142 on Android). `web-ext lint` flags any lower minimum.
+Decision: `strict_min_version` 140.0, `gecko_android` 142.0. Chromium stays at 121.
+Consequences: Covers the current Firefox ESR. Firefox 128 to 139 users cannot install it.
+
+### 029 CSRF accepts any extension origin on cookie-less requests
+2026-11-10 · accepted, supersedes 024
+Context: Publishing the extension to the stores made the explicit list unworkable. Firefox gives every install a random origin, so each store user would need adding by hand. A secret built into the extension was considered and rejected, because store packages are public and anyone can read it.
+Decision: Without a bearer token, a request passes the CSRF layer by the extension path when its Origin is a well formed `chrome-extension://<32 a-p>` or `moz-extension://<uuid>`, it carries `X-R16a-Request: 1`, and it has no session cookie. `R16A_EXTENSION_ORIGINS` becomes an optional restriction; when set, only listed origins pass.
+Consequences: Store installs work on both browsers with no server change. The origin never proved which extension was calling, and a web page still cannot claim an extension origin or send the custom header, so the CSRF guarantee is unchanged. Any installed extension or native script can reach the sign-in API, as any native client already could, and the auth key proof and per-account throttle remain the real gate. Web cookie sessions keep their full protection.

@@ -19,15 +19,17 @@ pub async fn insert(
     state: &str,
     expires_at: OffsetDateTime,
     user_agent: Option<&str>,
+    client: &str,
 ) -> sqlx::Result<Uuid> {
     sqlx::query_scalar!(
-        "insert into sessions (user_id, token_hash, state, expires_at, user_agent)
-         values ($1, $2, $3, $4, $5) returning id",
+        "insert into sessions (user_id, token_hash, state, expires_at, user_agent, client)
+         values ($1, $2, $3, $4, $5, $6) returning id",
         user_id,
         token_hash,
         state,
         expires_at,
-        user_agent
+        user_agent,
+        client
     )
     .fetch_one(db)
     .await
@@ -124,6 +126,7 @@ pub struct SessionSummary {
     pub id: Uuid,
     pub state: String,
     pub user_agent: Option<String>,
+    pub client: Option<String>,
     pub created_at: OffsetDateTime,
     pub last_seen_at: OffsetDateTime,
 }
@@ -132,7 +135,7 @@ pub struct SessionSummary {
 pub async fn list_for_user(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<Vec<SessionSummary>> {
     sqlx::query_as!(
         SessionSummary,
-        "select id, state, user_agent, created_at, last_seen_at from sessions
+        "select id, state, user_agent, client, created_at, last_seen_at from sessions
          where user_id = $1 and expires_at > now() order by last_seen_at desc",
         user_id
     )

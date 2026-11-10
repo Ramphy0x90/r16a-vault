@@ -129,7 +129,7 @@ export class SessionsPanel {
 
   protected readonly rows = computed<SessionRow[]>(() =>
     this.sessions().map((s) => {
-      const device = describeUserAgent(s.userAgent);
+      const device = describeUserAgent(s.userAgent, s.client);
       return {
         id: s.id,
         current: s.current,

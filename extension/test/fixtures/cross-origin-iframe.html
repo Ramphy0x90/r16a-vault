@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Fixture, login only inside a cross origin iframe</title>
+  </head>
+  <body>
+    <h1>The only login form is in a frame from another origin, nothing must be filled</h1>
+    <iframe
+      title="Embedded login"
+      src="https://other-origin.example/login.html"
+      width="400"
+      height="200"
+    ></iframe>
+  </body>
+</html>

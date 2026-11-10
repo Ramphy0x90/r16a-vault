@@ -7,6 +7,8 @@ A self-hosted, zero-knowledge credential vault. You keep logins (name, website, 
 | Backend | Rust 2024, axum 0.8, sqlx 0.9, PostgreSQL 13 or later (CI tests on 15, the cluster version) | `backend/` |
 | Web app | Angular 22 (standalone, signals, zoneless), libsodium | `web/` |
 | Mobile app | Flutter 3.44, Riverpod 3, go_router, libsodium | `mobile/` |
+| Browser extension | Manifest V3 for Chromium 121+ and Firefox 140+, WXT, libsodium | `extension/` |
+| Shared client code (crypto, TOTP, generator, URL matching) and design tokens | TypeScript, npm workspace | `packages/` |
 | Shared crypto test vectors and wordlist | | `shared/` |
 | Compose and Kubernetes | | `deploy/` |
 | Specification and threat model | | `docs/SPEC.md` |
@@ -69,9 +71,9 @@ Debug builds read `backend/.env` automatically; release builds and containers on
 **3. Web app.** Pick one of these.
 
 ```sh
-# Natively, with hot reload
-cd web
+# Natively, with hot reload. Installs run from the repo root, which is an npm workspace.
 npm ci
+cd web
 ng serve                # or: npm start. Opens on http://localhost:4200 and proxies /api to 127.0.0.1:8081
 
 # Or in Docker, the production nginx build with the real CSP headers
@@ -138,6 +140,8 @@ All settings are environment variables, validated at startup. Secrets have no de
 | `R16A_OIDC_DISPLAY_NAME` | `Authentik` | Button label. |
 | `R16A_OIDC_SCOPES` | `openid profile` | Extra scopes. |
 | `R16A_OIDC_MOBILE_REDIRECT` | `<R16A_PUBLIC_URL>/app/oidc-callback` | Verified https link that hands the mobile sign-in code to the app. Must be https on `R16A_PUBLIC_URL`. |
+| `R16A_EXTENSION_ORIGINS` | none | Optional. Restricts which browser extension origins may sign in (`chrome-extension://<id>`, `moz-extension://<uuid>`), comma separated. Empty accepts any well formed extension origin, which store installs need. Extension requests are accepted only without a session cookie. |
+| `R16A_OIDC_EXTENSION_REDIRECTS` | none | Exact `identity.getRedirectURL('oidc')` values of the extension, for single sign-on from it. Shown on the extension's settings page. |
 
 **Mobile single sign-on uses verified links.** The callback is `https://zaltys.app/app/oidc-callback`, and Android and iOS give it only to the app the domain vouches for. To make it work:
 
@@ -162,8 +166,9 @@ Set the issuer URL to the provider's `/application/o/<slug>/` URL. Accounts link
 ## Tests and checks
 
 ```sh
-# Backend: 58 tests, including sqlx::test integration tests for every endpoint,
-# cross-user isolation, throttling, expiry, CSRF and OIDC against a mock provider
+# Backend: 74 tests, including sqlx::test integration tests for every endpoint,
+# cross-user isolation, throttling, expiry, CSRF (also for extension origins) and OIDC
+# against a mock provider
 cd backend
 cargo test
 cargo clippy --all-targets -- -D warnings
@@ -177,11 +182,17 @@ cargo sqlx prepare -- --all-targets
 # After changing the API, refresh docs/openapi.json
 R16A_WRITE_OPENAPI=1 cargo test --test openapi
 
-# Web: 75 tests, including the shared crypto vectors, TOTP, generator statistics,
-# guards, clipboard, and reveal/copy component tests
+# Shared client code: 71 tests, including the shared crypto vectors, TOTP, generator
+# statistics and URL matching with Public Suffix List cases
+npm test --workspace @zaltys/vault-core
+
+# Web: 31 tests for guards, clipboard, auto-lock and the reveal/copy components
 cd web && npm test && npm run lint && npm run format:check
 
-# Mobile: 48 tests, including the shared vectors, TOTP, generator, and credential tile widgets
+# Browser extension: unit tests, Chromium end to end tests, live flow (see extension/README.md)
+cd extension && npm test && npm run test:e2e
+
+# Mobile: 53 tests, including the shared vectors, TOTP, generator, and credential tile widgets
 cd mobile && flutter test && flutter analyze
 
 # Mobile flows against a running server
@@ -215,6 +226,10 @@ Against `docker compose up`, with the browser's network tab open:
 7. Press **Lock**, then unlock. Change the master password; signing in with the old one now fails and the new one works, and your entries are still there.
 8. Delete the credential (the confirmation names it). Delete the account by typing the username and password; signing in now fails.
 9. In the network tab, check that no request or response contains a credential field, the master password, or the session token. Bodies hold only base64 ciphertext, key proofs and salts.
+
+## Browser extension
+
+`extension/` holds a Manifest V3 extension for Chromium browsers and Firefox. It unlocks the vault from the toolbar, fills logins on https pages when you click Fill, copies passwords and one-time codes, and generates passwords. The server accepts it without configuration. Build, load and test instructions are in [extension/README.md](extension/README.md), and the design is in [docs/EXTENSION_SPEC.md](docs/EXTENSION_SPEC.md).
 
 ## Running it for other people
 

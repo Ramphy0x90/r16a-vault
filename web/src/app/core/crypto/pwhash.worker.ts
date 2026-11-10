@@ -4,8 +4,7 @@
  * second of stretching. Inputs are wiped before replying, and the master key buffer is
  * transferred rather than copied so no second copy stays behind in this worker.
  */
-import { loadSodium } from './sodium';
-import { stretch, type KdfParams } from './protocol';
+import { loadSodium, stretch, type KdfParams } from '@zaltys/vault-core';
 
 interface Request {
   readonly id: number;

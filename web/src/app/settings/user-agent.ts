@@ -25,7 +25,18 @@ const SYSTEMS: readonly [RegExp, string, boolean][] = [
   [/Linux/, 'Linux', false],
 ];
 
-export function describeUserAgent(ua: string | null): DeviceDescription {
+/**
+ * The extension cannot set its own user agent, so the server records the client kind and the
+ * browser comes from the user agent the extension's requests carry.
+ */
+export function describeUserAgent(
+  ua: string | null,
+  client: string | null = null,
+): DeviceDescription {
+  if (client === 'extension') {
+    const browser = ua ? BROWSERS.find(([re]) => re.test(ua))?.[1] : undefined;
+    return { name: browser ? `Zaltys extension on ${browser}` : 'Zaltys extension', mobile: false };
+  }
   if (!ua) return { name: 'Unknown device', mobile: false };
   const app = /^r16a vault mobile \((\w+)\)/.exec(ua);
   if (app) return { name: `Zaltys app on ${app[1]}`, mobile: true };

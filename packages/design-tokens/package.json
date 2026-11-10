@@ -1,0 +1,12 @@
+{
+  "name": "@zaltys/design-tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HSL colour scales, semantic colour tokens for light and dark, spacing and control sizes shared by the Zaltys web app and browser extension.",
+  "exports": {
+    "./tokens.css": "./tokens.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

@@ -16,7 +16,10 @@ import { Icon } from '../shared/icon';
 import { AuthLayout } from './auth-layout';
 import { PasswordInput } from './password-input';
 
-export const MIN_MASTER_PASSWORD = 12;
+import { MIN_MASTER_PASSWORD } from '@zaltys/vault-core';
+
+// Re-exported for settings, which shares the rule.
+export { MIN_MASTER_PASSWORD };
 const USERNAME = /^[\p{L}\p{N}._-]{3,64}$/u;
 
 function matchPasswords(group: AbstractControl): ValidationErrors | null {

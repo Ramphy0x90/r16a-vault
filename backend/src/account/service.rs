@@ -91,6 +91,7 @@ pub async fn sessions(state: &AppState, session: &ValidSession) -> Result<Vec<Se
             id: s.id,
             state: s.state,
             user_agent: s.user_agent,
+            client: s.client,
             created_at: s.created_at,
             last_seen_at: s.last_seen_at,
         })

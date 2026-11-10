@@ -1,5 +1,5 @@
 {
-  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "$schema": "../node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "cli": {
     "packageManager": "npm",
@@ -28,8 +28,9 @@
               }
             ],
             "styles": [
-              "node_modules/@fontsource-variable/inter/wght.css",
-              "node_modules/@fontsource-variable/jetbrains-mono/wght.css",
+              "@fontsource-variable/inter/wght.css",
+              "@fontsource-variable/jetbrains-mono/wght.css",
+              "@zaltys/design-tokens/tokens.css",
               "src/styles.css"
             ],
             "webWorkerTsConfig": "tsconfig.worker.json"
@@ -79,7 +80,12 @@
           },
           "defaultConfiguration": "development",
           "options": {
-            "proxyConfig": "proxy.conf.json"
+            "proxyConfig": "proxy.conf.json",
+            "prebundle": {
+              "exclude": [
+                "@zaltys/vault-core"
+              ]
+            }
           }
         },
         "test": {

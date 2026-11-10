@@ -14,7 +14,7 @@ import {
 import { messageFor } from '../core/api/api-error';
 import { ClipboardService } from '../core/clipboard/clipboard.service';
 import type { CredentialMeta } from '../core/crypto/vault-crypto.service';
-import { parseTotp, secondsRemaining, totpCode, type TotpConfig } from '../core/totp/totp';
+import { parseTotp, secondsRemaining, totpCode, type TotpConfig } from '@zaltys/vault-core';
 import { ToastService } from '../core/ui/toast.service';
 import { VaultSessionStore } from '../core/vault/vault-session.store';
 import { Avatar } from '../shared/avatar';
@@ -24,7 +24,7 @@ import { CopyButton } from './copy-button';
 import { CredentialsStore } from './credentials.store';
 import { SecretField } from './secret-field';
 import { TotpDisplay } from './totp-display';
-import { hostOf } from './url';
+import { hostOf } from '@zaltys/vault-core';
 
 export const REVEAL_MS = 30_000;
 export const TOTP_VISIBLE_MS = 90_000;

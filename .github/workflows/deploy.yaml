@@ -61,15 +61,48 @@ jobs:
               with:
                   node-version: "24.22.2"
                   cache: npm
-                  cache-dependency-path: web/package-lock.json
+                  cache-dependency-path: package-lock.json
 
             - name: Web lint and tests
-              working-directory: web
               run: |
                   npm ci
+                  npm run format:check --workspace @zaltys/vault-core
+                  npm run typecheck --workspace @zaltys/vault-core
+                  npm test --workspace @zaltys/vault-core
+                  cd web
                   npm run sync-shared
                   npm run lint
                   npm test
+
+    # The extension is not deployed to the cluster, so this job gates nothing but itself.
+    test-extension:
+        runs-on: self-hosted
+
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+            - name: Set up Node
+              uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                  node-version: "24.22.2"
+                  cache: npm
+                  cache-dependency-path: package-lock.json
+
+            - name: Type check, format, unit tests, builds
+              run: |
+                  npm ci
+                  cd extension
+                  npm run typecheck
+                  npm run format:check
+                  npm test
+                  npm run build:firefox
+                  npx --yes web-ext@10.8.0 lint --source-dir .output/firefox-mv3
+
+            - name: Chromium end to end tests
+              working-directory: extension
+              run: |
+                  npx playwright install chromium
+                  npm run test:e2e
 
     security:
         runs-on: self-hosted
@@ -88,7 +121,7 @@ jobs:
                   node-version: "24.22.2"
 
             - name: npm audit
-              working-directory: web
+              # The workspace root lockfile covers web, the extension and the shared packages.
               run: npm audit --omit=dev --audit-level=high
 
             - name: OWASP Dependency Check

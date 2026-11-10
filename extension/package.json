@@ -1,0 +1,34 @@
+{
+  "name": "@zaltys/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zaltys browser extension for Chromium browsers and Firefox.",
+  "type": "module",
+  "scripts": {
+    "prepare:types": "wxt prepare",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox --mv3",
+    "build:chrome": "wxt build -b chrome",
+    "build:firefox": "wxt build -b firefox --mv3",
+    "zip:chrome": "wxt zip -b chrome",
+    "zip:firefox": "wxt zip -b firefox --mv3",
+    "typecheck": "wxt prepare && tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "wxt build -b chrome && playwright test extension.spec.ts",
+    "format": "prettier --write \"src/**/*.{ts,css,html}\" \"test/**/*.{ts,html}\" \"*.ts\"",
+    "format:check": "prettier --check \"src/**/*.{ts,css,html}\" \"test/**/*.{ts,html}\" \"*.ts\"",
+    "test:e2e:flow": "wxt build -b chrome --mode e2e && playwright test flow.spec.ts"
+  },
+  "dependencies": {
+    "@zaltys/design-tokens": "*",
+    "@zaltys/vault-core": "*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "jsdom": "^30.0.0",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0",
+    "wxt": "0.21.5",
+    "@types/chrome": "0.3.7"
+  }
+}

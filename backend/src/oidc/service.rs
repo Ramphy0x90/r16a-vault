@@ -85,12 +85,28 @@ pub struct Started {
     pub browser_cookie: Option<String>,
 }
 
-pub async fn start(state: &AppState, client: ClientKind, mobile_challenge: Option<&str>) -> Result<Started, AppError> {
+pub async fn start(
+    state: &AppState,
+    client: ClientKind,
+    mobile_challenge: Option<&str>,
+    app_redirect: Option<&str>,
+) -> Result<Started, AppError> {
     let provider = state.oidc.as_ref().ok_or(AppError::NotFound)?;
     let cfg = state.config.oidc.as_ref().ok_or(AppError::NotFound)?;
-    if client == ClientKind::Mobile && !mobile_challenge.is_some_and(valid_challenge) {
+    if client.uses_bearer() && !mobile_challenge.is_some_and(valid_challenge) {
         return Err(AppError::BadRequest("invalid-challenge"));
     }
+    // The extension names its own redirect, so it must be one the operator listed exactly.
+    // Mobile always uses the configured verified link and web the public origin.
+    let app_redirect = match client {
+        ClientKind::Extension => Some(
+            app_redirect
+                .filter(|r| cfg.extension_redirects.iter().any(|e| e == r))
+                .ok_or(AppError::BadRequest("invalid-redirect"))?,
+        ),
+        _ if app_redirect.is_some() => return Err(AppError::BadRequest("invalid-redirect")),
+        _ => None,
+    };
     let oidc = provider.client(false).await?;
     let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
     let mut request = oidc
@@ -107,7 +123,7 @@ pub async fn start(state: &AppState, client: ClientKind, mobile_challenge: Optio
 
     let browser_cookie = match client {
         ClientKind::Web => Some(random_token()?),
-        ClientKind::Mobile => None,
+        ClientKind::Mobile | ClientKind::Extension => None,
     };
     let binding = browser_cookie.as_deref().map(|c| crypto::sha256(c.as_bytes()));
     repository::insert_flow(
@@ -118,7 +134,8 @@ pub async fn start(state: &AppState, client: ClientKind, mobile_challenge: Optio
             pkce_verifier: pkce_verifier.secret(),
             client: client.as_str(),
             browser_binding: binding.as_ref().map(|b| &b[..]),
-            mobile_challenge: mobile_challenge.filter(|_| client == ClientKind::Mobile),
+            mobile_challenge: mobile_challenge.filter(|_| client.uses_bearer()),
+            app_redirect,
             expires_at: OffsetDateTime::now_utc() + FLOW_TTL,
         },
     )
@@ -131,13 +148,22 @@ pub async fn start(state: &AppState, client: ClientKind, mobile_challenge: Optio
 
 /// Where the browser goes after the callback, plus any cookies to set.
 pub enum Outcome {
-    WebPreAuth { session_token: String },
-    WebPending { pending_token: String },
-    Mobile { code: String },
+    WebPreAuth {
+        session_token: String,
+    },
+    WebPending {
+        pending_token: String,
+    },
+    /// One time code for mobile or the extension, redeemed with the app's verifier.
+    App {
+        code: String,
+    },
 }
 
 pub struct Callback {
     pub client: ClientKind,
+    /// Where an extension flow returns, taken from the flow row. None for web and mobile.
+    pub app_redirect: Option<String>,
     pub outcome: Result<Outcome, &'static str>,
 }
 
@@ -153,11 +179,14 @@ pub async fn callback(
         .await?
         .ok_or(AppError::BadRequest("oidc-state"))?;
     let client = ClientKind::parse(&flow.client).ok_or_else(|| AppError::internal("unknown oidc client kind"))?;
+    let app_redirect = flow.app_redirect.clone();
+    let done = |outcome| Callback {
+        client,
+        app_redirect: app_redirect.clone(),
+        outcome,
+    };
     if flow.expires_at <= OffsetDateTime::now_utc() {
-        return Ok(Callback {
-            client,
-            outcome: Err("oidc-expired"),
-        });
+        return Ok(done(Err("oidc-expired")));
     }
     if client == ClientKind::Web {
         let presented = cookies::read(headers, cookies::flow_name(&state.config)).map(|c| crypto::sha256(c.as_bytes()));
@@ -166,10 +195,7 @@ pub async fn callback(
             _ => false,
         };
         if !bound {
-            return Ok(Callback {
-                client,
-                outcome: Err("oidc-browser"),
-            });
+            return Ok(done(Err("oidc-browser")));
         }
     }
 
@@ -177,21 +203,19 @@ pub async fn callback(
         Ok(identity) => identity,
         Err(e) => {
             tracing::warn!(error = %e, "oidc callback rejected");
-            return Ok(Callback {
-                client,
-                outcome: Err("oidc-failed"),
-            });
+            return Ok(done(Err("oidc-failed")));
         }
     };
 
     let outcome = match repository::user_by_identity(&state.db, &issuer, &subject).await? {
         Some(user_id) => {
-            let issued = sessions::service::issue(state, &state.db, user_id, SessionState::PreAuth, headers).await?;
+            let issued =
+                sessions::service::issue(state, &state.db, user_id, SessionState::PreAuth, client, headers).await?;
             match client {
                 ClientKind::Web => Outcome::WebPreAuth {
                     session_token: issued.token,
                 },
-                ClientKind::Mobile => {
+                ClientKind::Mobile | ClientKind::Extension => {
                     let code = random_token()?;
                     repository::insert_code(
                         &state.db,
@@ -207,15 +231,12 @@ pub async fn callback(
                         },
                     )
                     .await?;
-                    Outcome::Mobile { code }
+                    Outcome::App { code }
                 }
             }
         }
         None if !state.config.registration_enabled => {
-            return Ok(Callback {
-                client,
-                outcome: Err("registration-disabled"),
-            });
+            return Ok(done(Err("registration-disabled")));
         }
         None => match client {
             ClientKind::Web => {
@@ -231,7 +252,7 @@ pub async fn callback(
                 .await?;
                 Outcome::WebPending { pending_token: token }
             }
-            ClientKind::Mobile => {
+            ClientKind::Mobile | ClientKind::Extension => {
                 let code = random_token()?;
                 repository::insert_code(
                     &state.db,
@@ -247,14 +268,11 @@ pub async fn callback(
                     },
                 )
                 .await?;
-                Outcome::Mobile { code }
+                Outcome::App { code }
             }
         },
     };
-    Ok(Callback {
-        client,
-        outcome: Ok(outcome),
-    })
+    Ok(done(Ok(outcome)))
 }
 
 /// Exchanges the code with PKCE and validates the ID token. A signature failure triggers one

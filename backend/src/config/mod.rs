@@ -51,6 +51,9 @@ pub struct OidcConfig {
     /// Verified https link (Android App Link, iOS associated domain) that hands the one time
     /// code to the mobile app. Only the genuine app can claim it, unlike a custom scheme.
     pub mobile_redirect: String,
+    /// Browser extension redirect URLs (`identity.getRedirectURL`) that may receive a one
+    /// time code. Exact values only. Empty disables single sign on from the extension.
+    pub extension_redirects: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -63,6 +66,11 @@ pub struct Config {
     /// Further origins accepted by the CSRF check. Development only, so `ng serve` and the
     /// dockerised web app can share one local backend.
     pub extra_origins: Vec<String>,
+    /// Optional restriction on which browser extension origins may sign in. Empty means any
+    /// well formed `chrome-extension://` or `moz-extension://` origin is accepted, which store
+    /// installs need because Firefox gives every install its own random origin. The CSRF layer
+    /// accepts extension origins only on requests that carry no session cookie, see `http::csrf`.
+    pub extension_origins: Vec<String>,
     pub prelogin_secret: SecretBox<Vec<u8>>,
     pub auth_pepper: Option<SecretBox<Vec<u8>>>,
     pub session_idle: Duration,
@@ -182,6 +190,11 @@ impl Config {
                     .map(str::to_owned)
                     .collect(),
                 mobile_redirect,
+                extension_redirects: list(&get, "R16A_OIDC_EXTENSION_REDIRECTS", |s| {
+                    extension_redirect(s).ok_or_else(|| {
+                        format!("'{s}' is not an https chromiumapp.org or extensions.allizom.org redirect URL")
+                    })
+                })?,
             })
         } else {
             None
@@ -208,7 +221,12 @@ impl Config {
                 .collect::<Result<_, _>>()?,
         };
 
+        let extension_origins = list(&get, "R16A_EXTENSION_ORIGINS", |s| {
+            extension_origin(s).ok_or_else(|| format!("'{s}' is not a chrome-extension or moz-extension origin"))
+        })?;
+
         Ok(Self {
+            extension_origins,
             extra_origins,
             oidc,
             public_url: public_url.trim_end_matches('/').to_owned(),
@@ -307,6 +325,52 @@ fn secret_bytes(
 }
 
 /// Reduces a URL to scheme, host and port, which is what browsers put in the Origin header.
+/// Parses a comma separated list, validating and normalising every entry.
+fn list(
+    get: &impl Fn(&str) -> Option<String>,
+    name: &'static str,
+    check: impl Fn(&str) -> Result<String, String>,
+) -> Result<Vec<String>, ConfigError> {
+    get(name)
+        .unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| check(s).map_err(|reason| ConfigError::Invalid { name, reason }))
+        .collect()
+}
+
+/// Chrome extension ids are 32 letters from a to p. Firefox origins carry a random UUID that
+/// differs per install. Returns the lowercased origin, or nothing when the shape is wrong.
+pub fn extension_origin(s: &str) -> Option<String> {
+    let s = s.to_ascii_lowercase();
+    if let Some(id) = s.strip_prefix("chrome-extension://") {
+        return (id.len() == 32 && id.bytes().all(|b| (b'a'..=b'p').contains(&b))).then_some(s);
+    }
+    let uuid = s.strip_prefix("moz-extension://")?;
+    let groups: Vec<&str> = uuid.split('-').collect();
+    let shape = groups.iter().map(|g| g.len()).collect::<Vec<_>>() == [8, 4, 4, 4, 12];
+    (shape && groups.iter().all(|g| g.bytes().all(|b| b.is_ascii_hexdigit()))).then_some(s)
+}
+
+/// Only the browser owned redirect hosts are accepted. No website can serve them, the
+/// browser hands the navigation to the extension that started the flow.
+fn extension_redirect(s: &str) -> Option<String> {
+    let rest = s.strip_prefix("https://")?;
+    let (host, path) = rest.split_once('/')?;
+    if path.is_empty() || path.contains(['?', '#']) || host != host.to_ascii_lowercase() {
+        return None;
+    }
+    let label_ok = if let Some(id) = host.strip_suffix(".chromiumapp.org") {
+        id.len() == 32 && id.bytes().all(|b| (b'a'..=b'p').contains(&b))
+    } else if let Some(sub) = host.strip_suffix(".extensions.allizom.org") {
+        (1..=63).contains(&sub.len()) && sub.bytes().all(|b| b.is_ascii_alphanumeric())
+    } else {
+        false
+    };
+    label_ok.then(|| s.to_owned())
+}
+
 fn origin_of(url: &str) -> Option<String> {
     let (scheme, rest) = url.split_once("://")?;
     let scheme = scheme.to_ascii_lowercase();
@@ -447,6 +511,52 @@ mod tests {
             load(&env).expect("valid").extra_origins,
             vec![String::from("http://localhost:8080")]
         );
+    }
+
+    #[test]
+    fn extension_origins_and_redirects_are_exact_browser_values() {
+        let chrome = "chrome-extension://abcdefghijklmnopabcdefghijklmnop";
+        let firefox = "moz-extension://0F3C3A6E-8A8C-4C4E-9B8F-2D6A1C0E5B7D";
+        assert_eq!(extension_origin(chrome).as_deref(), Some(chrome));
+        assert_eq!(
+            extension_origin(firefox).as_deref(),
+            Some("moz-extension://0f3c3a6e-8a8c-4c4e-9b8f-2d6a1c0e5b7d")
+        );
+        for bad in [
+            "chrome-extension://abcdefghijklmnopabcdefghijklmnoz",
+            "chrome-extension://short",
+            "moz-extension://not-a-uuid",
+            "chrome-extension://abcdefghijklmnopabcdefghijklmnop/",
+            "https://vault.example.com",
+            "*",
+        ] {
+            assert_eq!(extension_origin(bad), None, "{bad}");
+        }
+
+        assert!(extension_redirect("https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/oidc").is_some());
+        assert!(extension_redirect("https://3f2a9b.extensions.allizom.org/oidc").is_some());
+        for bad in [
+            "http://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/oidc",
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/",
+            "https://abcdefghijklmnopabcdefghijklmnop.chromiumapp.org/oidc?x=1",
+            "https://evil.chromiumapp.org.example/oidc",
+            "https://a.b.extensions.allizom.org/oidc",
+            "https://vault.example.com/oidc",
+        ] {
+            assert_eq!(extension_redirect(bad), None, "{bad}");
+        }
+
+        let mut env = base();
+        env.insert("R16A_EXTENSION_ORIGINS", format!("{chrome}, {firefox}"));
+        assert_eq!(load(&env).expect("valid").extension_origins.len(), 2);
+        env.insert("R16A_EXTENSION_ORIGINS", "*".into());
+        assert!(matches!(
+            load(&env),
+            Err(ConfigError::Invalid {
+                name: "R16A_EXTENSION_ORIGINS",
+                ..
+            })
+        ));
     }
 
     #[test]

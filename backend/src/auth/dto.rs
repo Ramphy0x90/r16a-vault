@@ -43,6 +43,7 @@ pub enum ClientKind {
     #[default]
     Web,
     Mobile,
+    Extension,
 }
 
 impl ClientKind {
@@ -50,7 +51,14 @@ impl ClientKind {
         match self {
             Self::Web => "web",
             Self::Mobile => "mobile",
+            Self::Extension => "extension",
         }
+    }
+
+    /// Mobile and the extension authenticate with a bearer token returned in the body and
+    /// receive OIDC results as a one time code. Only the web app uses the cookie.
+    pub fn uses_bearer(self) -> bool {
+        !matches!(self, Self::Web)
     }
 
     /// Strict parsing, so a corrupted or unexpected value is an error rather than a default.
@@ -58,6 +66,7 @@ impl ClientKind {
         match s {
             "web" => Some(Self::Web),
             "mobile" => Some(Self::Mobile),
+            "extension" => Some(Self::Extension),
             _ => None,
         }
     }

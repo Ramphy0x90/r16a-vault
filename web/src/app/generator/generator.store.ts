@@ -10,7 +10,7 @@ import {
   strengthOf,
   type PassphraseOptions,
   type RandomOptions,
-} from './generator';
+} from '@zaltys/vault-core';
 import { WORDLIST_SIZE, WordlistService } from './wordlist.service';
 
 export type GeneratorMode = 'random' | 'passphrase';

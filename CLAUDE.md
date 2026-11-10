@@ -1,13 +1,13 @@
 # Zaltys
 
-Zaltys is a self-hosted, zero-knowledge credential vault. All vault crypto runs on the client, so the server stores only ciphertext it cannot decrypt. It is a Rust (axum) backend on PostgreSQL, an Angular web app and a Flutter mobile app.
+Zaltys is a self-hosted, zero-knowledge credential vault. All vault crypto runs on the client, so the server stores only ciphertext it cannot decrypt. It is a Rust (axum) backend on PostgreSQL, an Angular web app, a Flutter mobile app and a Manifest V3 browser extension.
 
 The repo, crates, packages and env vars still use the old name `r16a-vault` / `R16A_`. Keep those identifiers; say "Zaltys" in prose and user-facing text.
 
 ## Non-negotiable rules
 
 - Agents never commit, push, tag, stash, reset, rebase or switch branches. `git status` and `git diff` are fine. Leave every change in the working tree for the human.
-- Never implement crypto primitives. Clients use libsodium (`libsodium-wrappers-sumo` on web, `sodium` on Flutter). The server uses audited RustCrypto crates (`argon2`, `hmac`, `sha2`, `subtle`).
+- Never implement crypto primitives. Clients use libsodium (`libsodium-wrappers-sumo` in `packages/vault-core` for web and the extension, `sodium` on Flutter). The server uses audited RustCrypto crates (`argon2`, `hmac`, `sha2`, `subtle`).
 - Never log, return or put in errors any secret. That covers master passwords, auth keys, session tokens, vault keys and ciphertext blobs. DTOs holding key material print `[redacted]` in `Debug`.
 - Comments explain behaviour, intent, invariants and the non-obvious why. Never restate the code. No colon and no em dash inside comment sentences.
 - Verify library versions against the registry (crates.io, npm, pub.dev) before adding or bumping, never from memory.
@@ -22,12 +22,13 @@ Breaking any of these is a security bug. Details live in `docs/SPEC.md`.
 - Every credential blob is XChaCha20-Poly1305 with the vault key, a fresh random 24 byte nonce, and AAD `r16a-vault:cred:v1:{id}:{meta|secret}` (SPEC 3.4, 3.5).
 - `wrappedVaultKey` is returned only after an `authKey` proof, by login or `/auth/unlock`, never by `/me` (SPEC 4.5, D1).
 - Every credential query is scoped by the session's `user_id`. Foreign ids return 404, never 403 (SPEC 5, R7).
-- Both clients must pass `shared/crypto-test-vectors.json`. A crypto change means new vectors and both clients changed together (SPEC 3.8).
+- `packages/vault-core` (web and extension) and the Flutter client must both pass `shared/crypto-test-vectors.json`. A crypto change means new vectors and both implementations changed together (SPEC 3.8).
+- The browser extension never gives web pages a channel to it, and a page only ever receives one username and password after a click (EXTENSION_SPEC 3, 6).
 - Any change to KDF parameters or bounds, AAD format, blob format, token handling or session lifetime is a security change and needs a `docs/DECISIONS.md` entry.
 
 ## Architecture
 
-Same-origin deployment. nginx serves the web app at `/` and proxies `/api` to the backend, so the API emits no CORS headers. The web client authenticates with an HttpOnly `__Host-session` cookie plus a CSRF header and Origin check. Mobile uses a bearer token kept in platform secure storage. The server stores an Argon2id hash of `auth_key`, the SHA-256 of session tokens, and opaque blobs. Per-account login throttling lives in PostgreSQL, so it holds across replicas.
+Same-origin deployment. nginx serves the web app at `/` and proxies `/api` to the backend, so the API emits no CORS headers. The web client authenticates with an HttpOnly `__Host-session` cookie plus a CSRF header and Origin check. Mobile and the browser extension use a bearer token. The extension's sign-in requests pass the CSRF layer from any well formed extension origin with the custom header and no session cookie. `R16A_EXTENSION_ORIGINS` optionally restricts them. The server stores an Argon2id hash of `auth_key`, the SHA-256 of session tokens, and opaque blobs. Per-account login throttling lives in PostgreSQL, so it holds across replicas.
 
 ```
 master_password (NFC) + kdf_salt --Argon2id (client, >= 64 MiB, t>=3)--> master_key
@@ -42,6 +43,9 @@ credential = meta blob + secret blob, each sealed with vault_key and AAD bound t
 - `backend/` Rust API server, migrations, `sqlx` offline cache in `.sqlx/`.
 - `web/` Angular 22 app, nginx config and its Dockerfile.
 - `mobile/` Flutter app (Android and iOS).
+- `extension/` browser extension for Chromium and Firefox (WXT).
+- `packages/` shared TypeScript for web and the extension. `vault-core` holds crypto, TOTP, generator and URL matching; `design-tokens` holds the colour tokens.
+- Root `package.json` is an npm workspace over `packages/*`, `web` and `extension`, with one lockfile. Run `npm ci` at the root.
 - `shared/` crypto test vectors, the EFF wordlist, the vector generator (`scripts/`) and the independent RustCrypto checker (`tools/vector-verify`).
 - `deploy/` Docker Compose (prod-like and dev) and Kubernetes manifests.
 - `docs/` SPEC (source of truth), DECISIONS, OPERATING guide, privacy notice template, generated `openapi.json`.
@@ -49,7 +53,7 @@ credential = meta blob + secret blob, each sealed with vault_key and AAD bound t
 
 ## Commands
 
-All verified on 2026-11-10. Web needs Node 24.22.2 (`source ~/.nvm/nvm.sh && nvm use 24.22.2`).
+All verified on 2026-11-10. Node work needs Node 24.22.2 (`source ~/.nvm/nvm.sh && nvm use 24.22.2`) and `npm ci` at the repo root.
 
 | Task | Command |
 |---|---|
@@ -61,6 +65,8 @@ All verified on 2026-11-10. Web needs Node 24.22.2 (`source ~/.nvm/nvm.sh && nvm
 | Web run | `cd web && npm start` (port 4200, proxies `/api` to 8081) |
 | Web test, lint, build | `npm test`, `npm run lint`, `npm run build` |
 | Web format | `npm run format` or `npm run format:check` |
+| Shared package | `npm test --workspace @zaltys/vault-core`, also `typecheck`, `format:check` |
+| Extension | `cd extension && npm run build:chrome`, `npm run build:firefox`, `npm test`, `npm run test:e2e`, `npm run typecheck` |
 | Mobile | `cd mobile && flutter analyze`, `flutter test`, `dart format lib test`, `flutter run` |
 | Vector check | `cd shared/tools/vector-verify && cargo run --release` |
 | k8s validation | `docker run --rm -v "$PWD/deploy/k8s":/m:ro ghcr.io/yannh/kubeconform:latest -strict -summary /m` |
@@ -78,7 +84,8 @@ Per-app details and less common commands are in each app's `CLAUDE.md`.
 
 ## Where to look next
 
-- [backend/CLAUDE.md](backend/CLAUDE.md), [web/CLAUDE.md](web/CLAUDE.md), [mobile/CLAUDE.md](mobile/CLAUDE.md), [deploy/CLAUDE.md](deploy/CLAUDE.md)
+- [backend/CLAUDE.md](backend/CLAUDE.md), [web/CLAUDE.md](web/CLAUDE.md), [mobile/CLAUDE.md](mobile/CLAUDE.md), [extension/CLAUDE.md](extension/CLAUDE.md), [deploy/CLAUDE.md](deploy/CLAUDE.md)
+- [docs/EXTENSION_SPEC.md](docs/EXTENSION_SPEC.md) for the extension's threat model, permissions and fill rules
 - [docs/SPEC.md](docs/SPEC.md) for crypto, API contract, data model and threat model
 - [docs/DECISIONS.md](docs/DECISIONS.md) for why things are the way they are
 - [docs/OPERATING.md](docs/OPERATING.md) for running Zaltys for other people (GDPR, retention, incidents)

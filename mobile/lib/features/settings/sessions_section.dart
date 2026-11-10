@@ -13,12 +13,19 @@ final sessionsProvider = FutureProvider.autoDispose<List<SessionInfo>>(
   (ref) => ref.read(apiClientProvider).listSessions(),
 );
 
-/// A short device name from a stored user agent. Unknown formats get a neutral label.
-String describeDevice(String? ua) {
+/// A short device name from a stored user agent. Unknown formats get a neutral label. The
+/// extension cannot set its own user agent, so its sessions are named from the client kind.
+String describeDevice(String? ua, [String? client]) {
+  const browsers = {'Edg/': 'Edge', 'Firefox/': 'Firefox', 'Chrome/': 'Chrome', 'Safari/': 'Safari'};
+  if (client == 'extension') {
+    final browser = ua == null
+        ? null
+        : browsers.entries.where((e) => ua.contains(e.key)).map((e) => e.value).firstOrNull;
+    return browser == null ? 'Zaltys extension' : 'Zaltys extension on $browser';
+  }
   if (ua == null) return 'Unknown device';
   final app = RegExp(r'^r16a vault mobile \((\w+)\)').firstMatch(ua);
   if (app != null) return 'Zaltys app on ${app.group(1)}';
-  const browsers = {'Edg/': 'Edge', 'Firefox/': 'Firefox', 'Chrome/': 'Chrome', 'Safari/': 'Safari'};
   const systems = {
     'Android': 'Android',
     'iPhone': 'iOS',
@@ -49,7 +56,7 @@ class SessionsSection extends ConsumerWidget {
     try {
       await ref.read(apiClientProvider).revokeSession(s.id);
       ref.invalidate(sessionsProvider);
-      messenger.showSnackBar(SnackBar(content: Text('Signed out ${describeDevice(s.userAgent)}.')));
+      messenger.showSnackBar(SnackBar(content: Text('Signed out ${describeDevice(s.userAgent, s.client)}.')));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(messageFor(e))));
     }
@@ -69,7 +76,7 @@ class SessionsSection extends ConsumerWidget {
                     ? const tabler.DeviceMobile()
                     : const tabler.DeviceDesktop(),
               ),
-              title: Text(describeDevice(s.userAgent)),
+              title: Text(describeDevice(s.userAgent, s.client)),
               subtitle: Text(
                 s.current ? 'This device' : 'Active ${_ago(s.lastSeenAt)}${s.locked ? ' · waiting for unlock' : ''}',
                 style: TextStyle(color: muted),

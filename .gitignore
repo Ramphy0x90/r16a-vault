@@ -1,6 +1,7 @@
 # Build outputs and local tooling, per component ignores live next to each app.
 backend/target/
 shared/tools/vector-verify/target/
-shared/scripts/node_modules/
+# npm installs and tool caches at any depth. The workspace installs once at the root, but vitest and WXT keep caches in each package node_modules.
+node_modules/
 .env
 *.dec.yaml

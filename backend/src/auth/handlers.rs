@@ -101,7 +101,7 @@ pub async fn login(
     ApiJson(req): ApiJson<LoginRequest>,
 ) -> Result<Response, AppError> {
     state.ip_limiter.check(ip.0)?;
-    let auth = service::login(&state, ip.0, &req.username, &req.auth_key, &headers).await?;
+    let auth = service::login(&state, ip.0, &req.username, &req.auth_key, req.client, &headers).await?;
     login_response(&state, auth, req.client, StatusCode::OK)
 }
 

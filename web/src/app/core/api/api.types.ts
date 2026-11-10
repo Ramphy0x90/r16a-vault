@@ -1,4 +1,4 @@
-import type { KdfParams } from '../crypto/protocol';
+import type { KdfParams } from '@zaltys/vault-core';
 
 export type ClientKind = 'web';
 
@@ -49,6 +49,8 @@ export interface SessionDto {
   readonly current: boolean;
   readonly state: 'pre_auth' | 'full';
   readonly userAgent: string | null;
+  /** Null for sessions created before the server recorded it. */
+  readonly client: 'web' | 'mobile' | 'extension' | null;
   readonly createdAt: string;
   readonly lastSeenAt: string;
 }

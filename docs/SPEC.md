@@ -136,10 +136,12 @@ Both blobs are compact JSON, UTF-8, with these exact keys. Unknown keys are igno
 
 ```jsonc
 // meta, decrypted for the list. hasTotp lets the list offer a code without opening the secret.
-{ "name": "string (1..200)", "url": "string | null (<= 2048)", "username": "string (<= 512)", "hasTotp": "boolean, optional" }
+{ "name": "string (1..200)", "url": "string | null (<= 2048)", "username": "string (<= 512)", "hasTotp": "boolean, optional", "match": "\"host\", optional" }
 // secret, decrypted only on reveal, copy, or TOTP display
 { "password": "string (<= 4096)", "mfaSecret": "string | null" }
 ```
+
+`match: "host"` limits autofill in the browser extension to the exact host instead of the registrable domain (EXTENSION_SPEC 6.2). Other clients ignore it.
 
 `mfaSecret` stores either a bare base32 secret (normalised to uppercase without spaces or `=` padding) or a full `otpauth://totp/...` URI when the user pastes one, so that `algorithm`, `digits` and `period` survive. This is the future hook for QR import.
 
@@ -257,25 +259,25 @@ Base path `/api/v1`. JSON bodies use camelCase. Binary fields are standard base6
 |---|---|---|---|---|
 | POST | `/auth/prelogin` | none | `{username}` | 200 `{kdf, salt}` |
 | POST | `/auth/register` | none, or the OIDC pending cookie (web) or `X-R16a-Oidc-Pending` header (mobile) | `{username, authKey, kdf, salt, wrappedVaultKey, client}` | 201 `LoginResponse`, links the OIDC identity when a pending token is presented |
-| POST | `/auth/login` | none | `{username, authKey, client}` | 200 `LoginResponse` |
+| POST | `/auth/login` | none | `{username, authKey, client}`, client is `web`, `mobile` or `extension` | 200 `LoginResponse` |
 | POST | `/auth/unlock` | session (full or pre_auth) | `{authKey}` | 200 `{wrappedVaultKey, kdf, salt, token?}`, token rotated |
 | POST | `/auth/logout` | session | none | 204, cookie cleared |
 | POST | `/auth/logout-all` | full session | `{authKey}` | 204, all sessions (full and pre_auth) deleted, mobile OIDC exchange codes go with them by cascade, cookie cleared. Pending OIDC identities belong to no account and simply expire |
 | GET | `/auth/config` | none | none | 200 `{oidcEnabled, oidcDisplayName, registrationEnabled}` |
-| GET | `/auth/oidc/start` | none | query `client`, `challenge?` | 303 to IdP, sets the flow binding cookie for web |
+| GET | `/auth/oidc/start` | none | query `client`, `challenge?`, `redirect?` (extension only, must be listed in `R16A_OIDC_EXTENSION_REDIRECTS`) | 303 to IdP, sets the flow binding cookie for web |
 | GET | `/auth/oidc/callback` | flow cookie (web) | query from IdP | 303 to `/unlock`, `/register?oidc=1`, `/login?oidc_error=<slug>` or the app scheme |
 | POST | `/auth/oidc/exchange` | none | `{code, verifier}` | 200 `{token, state: "pre_auth" \| "pending", suggestedUsername?}` |
 | GET | `/auth/oidc/pending` | pending cookie or `X-R16a-Oidc-Pending` | none | 200 `{suggestedUsername?}` |
 | GET | `/me` | session | none | 200 `{id, username, kdf, salt, sessionState, createdAt}` |
 | PUT | `/me/master-password` | full session | `{currentAuthKey, newAuthKey, newSalt, newKdf, newWrappedVaultKey}` | 204 |
-| GET | `/me/sessions` | full session | none | 200 `[{id, current, state, userAgent, createdAt, lastSeenAt}]` |
+| GET | `/me/sessions` | full session | none | 200 `[{id, current, state, userAgent, client, createdAt, lastSeenAt}]` |
 | DELETE | `/me/sessions/{id}` | full session | none | 204, 400 for the current session (use logout), 404 for unknown or foreign ids |
 | DELETE | `/me` | full session | `{authKey}` | 204, cookie cleared |
 | GET | `/credentials` | full session | none | 200 `[{id, meta, secret, createdAt, updatedAt}]` ordered by `createdAt` |
 | POST | `/credentials` | full session | `{id, meta, secret}` | 201 same shape |
 | DELETE | `/credentials/{id}` | full session | none | 204, or 404 if not found **or not owned** |
 
-`LoginResponse = {user: {id, username}, kdf, salt, wrappedVaultKey, token?}`, where `token` is present only for `client = "mobile"`.
+`LoginResponse = {user: {id, username}, kdf, salt, wrappedVaultKey, token?}`, where `token` is present only for the bearer clients `mobile` and `extension`.
 
 Credential rules. `id` must be a valid UUID. Blobs must decode, be 41 to 8192 bytes, and start with 0x01. A duplicate `id` returns 409. Every query includes `WHERE user_id = $session_user`. Maximum 5000 credentials per user (413) to bound storage abuse.
 
@@ -313,7 +315,8 @@ create table sessions (
   created_at    timestamptz not null default now(),
   last_seen_at  timestamptz not null default now(),
   expires_at    timestamptz not null,
-  user_agent    text
+  user_agent    text,
+  client        text check (client in ('web', 'mobile', 'extension'))  -- migration 0004, null for older rows
 );
 create index on sessions (user_id);
 create index on sessions (expires_at);
@@ -343,7 +346,7 @@ create table login_throttle (
 -- All rows expire within 10 minutes (codes within 60 seconds) and are swept by the cleanup task.
 ```
 
-`user_agent` is truncated to 256 characters. It is shown nowhere yet but is kept for a future "active sessions" screen.
+`user_agent` is truncated to 256 characters. Together with `client` it names each device in the active sessions list.
 
 ### 6.1 Database roles
 
@@ -466,7 +469,7 @@ Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
 ### 8.4 Forms
 
 - Login uses `autocomplete="username"` and `current-password`. Register uses `new-password`.
-- Vault entry password inputs use `autocomplete="off"` plus `data-1p-ignore`, `data-lpignore` so the browser does not offer to save vault entries.
+- Vault entry and settings password inputs use `autocomplete="new-password"` plus the 1Password, LastPass, Bitwarden and Dashlane opt-out attributes. Browsers ignore `autocomplete="off"` on password fields but do not fill saved passwords into `new-password` ones.
 
 ---
 
@@ -639,6 +642,7 @@ As in the brief section 9.2, specifically:
 | R9 | iOS session token is this device only, Android excludes app data from backup and device transfer. | The token could leave the device through iOS backups. |
 | R10 | Active sessions screen on web and mobile, `GET /me/sessions`, `DELETE /me/sessions/{id}`. | Gives the stored user agent a purpose and lets users end sessions they do not recognise. |
 | R11 | nginx logs keep only the client network and no user agent, compose rotates logs, `R16A_PRIVACY_URL` links a privacy notice, licences and the EFF attribution ship with both apps. | Data minimisation and licence obligations. |
+| R13 | Browser extension (`extension/`), shared `packages/vault-core` and `packages/design-tokens`, client kind `extension`, `sessions.client`, CSRF extension origins, extension OIDC redirects. Full design in `docs/EXTENSION_SPEC.md`, decisions 019 to 028. | A third client without copying crypto or weakening web cookie protection. |
 | R12 | Mobile OIDC callback moved from the `r16avault://` scheme to a verified https link on the public origin. | Any app could register the scheme, start a flow with its own verifier and receive the code when the provider signs in silently. |
 
 ## 12. Future features, kept possible

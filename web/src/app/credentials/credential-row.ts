@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input, output } from '@an
 import { Avatar } from '../shared/avatar';
 import { Icon } from '../shared/icon';
 import type { CredentialEntry } from './credentials.store';
-import { hostOf } from './url';
+import { hostOf } from '@zaltys/vault-core';
 
 /** One list row. Presentational, it only reports that the user picked it. */
 @Component({

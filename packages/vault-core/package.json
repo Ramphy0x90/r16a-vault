@@ -1,0 +1,27 @@
+{
+  "name": "@zaltys/vault-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Client vault crypto, TOTP, password generation and URL matching shared by the Zaltys web app and browser extension.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\""
+  },
+  "dependencies": {
+    "libsodium-wrappers-sumo": "0.8.4",
+    "otpauth": "9.6.0",
+    "tldts": "7.4.19"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  }
+}

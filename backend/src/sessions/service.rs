@@ -86,6 +86,7 @@ pub async fn issue(
     db: impl sqlx::PgExecutor<'_>,
     user_id: Uuid,
     session_state: SessionState,
+    client: crate::auth::dto::ClientKind,
     headers: &HeaderMap,
 ) -> Result<IssuedToken, AppError> {
     let (token, hash) = new_token()?;
@@ -101,6 +102,7 @@ pub async fn issue(
         session_state.as_str(),
         expires_at,
         user_agent.as_deref(),
+        client.as_str(),
     )
     .await?;
     Ok(IssuedToken { session_id, token })

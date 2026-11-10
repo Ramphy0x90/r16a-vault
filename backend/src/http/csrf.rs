@@ -5,6 +5,15 @@
 //! script, and the server never answers preflights, so such scripts cannot send it.
 //! The Origin and Sec-Fetch-Site headers catch plain form posts. Requests that carry
 //! a bearer token are exempt because browsers never attach those automatically.
+//!
+//! The browser extension signs in before it holds a token, and its requests carry its own
+//! extension origin. Such a request passes when the origin is a well formed extension origin,
+//! the custom header is present, and no session cookie is attached. Without a cookie the
+//! request has no ambient authority to forge, and a web page can neither claim an extension
+//! origin nor send the custom header cross site. The origin is not proof of which extension
+//! is calling, any installed extension or native script can reach the API, so the account's
+//! auth key proof stays the only real gate. `R16A_EXTENSION_ORIGINS`, when set, narrows the
+//! accepted origins for operators who want that.
 
 use axum::{
     extract::{Request, State},
@@ -13,7 +22,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::{error::AppError, state::AppState};
+use crate::{config::extension_origin, error::AppError, state::AppState};
 
 pub const CSRF_HEADER: &str = "x-r16a-request";
 
@@ -29,6 +38,14 @@ pub async fn csrf_layer(State(state): State<AppState>, req: Request, next: Next)
     if !has_bearer {
         let custom_ok = headers.get(CSRF_HEADER).is_some_and(|v| v.as_bytes() == b"1");
         let origin = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok());
+        let cookie = has_session_cookie(headers, state.config.cookie_name());
+        let from_extension = origin.and_then(extension_origin).is_some_and(|o| {
+            let listed = &state.config.extension_origins;
+            listed.is_empty() || listed.contains(&o)
+        });
+        if from_extension && custom_ok && !cookie {
+            return next.run(req).await;
+        }
         let origin_ok = match origin {
             Some(o) => {
                 o.eq_ignore_ascii_case(&state.config.public_origin)
@@ -36,7 +53,7 @@ pub async fn csrf_layer(State(state): State<AppState>, req: Request, next: Next)
             }
             // Browsers always send Origin on cross origin unsafe requests, so its absence
             // only happens for native clients, which do not carry the cookie.
-            None => !has_session_cookie(headers, state.config.cookie_name()),
+            None => !cookie,
         };
         let fetch_site_ok = headers
             .get("sec-fetch-site")

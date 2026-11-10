@@ -12,6 +12,11 @@ void main() {
     );
     expect(describeDevice('Mozilla/5.0 (iPhone; CPU iPhone OS 19_0 like Mac OS X) Safari/604.1'), 'Safari on iOS');
     expect(describeDevice(null), 'Unknown device');
+    expect(
+      describeDevice('Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0', 'extension'),
+      'Zaltys extension on Firefox',
+    );
+    expect(describeDevice(null, 'extension'), 'Zaltys extension');
     expect(describeDevice('curl/8.0'), 'Unknown device');
   });
 }

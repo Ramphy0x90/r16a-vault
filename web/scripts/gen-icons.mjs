@@ -2,7 +2,7 @@
 // app uses. The component renders the shapes as SVG elements, so no markup string ever goes
 // through innerHTML and the Trusted Types policy stays untouched.
 //   node scripts/gen-icons.mjs
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +29,15 @@ const ICONS = [
 ];
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const dir = join(root, 'node_modules/@tabler/icons/icons/outline');
+// Hoisted to the workspace root or local to web, resolved the way Node does.
+function packageDir(name) {
+  for (let d = root; ; d = dirname(d)) {
+    const candidate = join(d, 'node_modules', name);
+    if (existsSync(candidate)) return candidate;
+    if (dirname(d) === d) throw new Error(`${name} is not installed`);
+  }
+}
+const dir = join(packageDir('@tabler/icons'), 'icons/outline');
 const attr = /([a-z-]+)="([^"]*)"/g;
 const out = {};
 for (const name of ICONS) {

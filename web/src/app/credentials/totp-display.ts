@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import { groupCode } from '../core/totp/totp';
+import { groupCode } from '@zaltys/vault-core';
 import { CountdownRing } from '../shared/countdown-ring';
 import { Icon } from '../shared/icon';
 import { CopyButton } from './copy-button';
